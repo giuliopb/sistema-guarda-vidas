@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Sistema Guarda-Vidas</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#eef2f5;
+margin:0;
+padding:20px;
+}
+
+.container{
+
+max-width:900px;
+margin:auto;
+background:white;
+padding:25px;
+border-radius:10px;
+box-shadow:0 4px 12px rgba(0,0,0,0.1);
+
+}
+
+h2{
+margin-top:30px;
+}
+
+input,select,button{
+
+width:100%;
+padding:12px;
+margin-top:10px;
+border-radius:6px;
+border:1px solid #ccc;
+font-size:16px;
+
+}
+
+button{
+
+background:#1976d2;
+color:white;
+border:none;
+cursor:pointer;
+
+}
+
+button:hover{
+
+background:#125aa0;
+
+}
+
+.item{
+
+padding:12px;
+border-bottom:1px solid #ddd;
+display:flex;
+align-items:center;
+gap:10px;
+
+}
+
+.subitem{
+
+margin-left:25px;
+color:#555;
+display:flex;
+align-items:center;
+gap:10px;
+padding:6px;
+
+}
+
+.grid{
+
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+
+}
+
+/* RESPONSIVIDADE */
+
+@media(max-width:700px){
+
+.grid{
+
+grid-template-columns:1fr;
+
+}
+
+.container{
+
+padding:15px;
+
+}
+
+h2{
+
+font-size:18px;
+
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Login</h2>
+
+<div class="grid">
+
+<input id="email" placeholder="Email">
+
+<input id="senha" type="password" placeholder="Senha">
+
+</div>
+
+<button onclick="login()">Entrar</button>
+
+
+<h2>Posto</h2>
+
+<select id="postos"></select>
+
+<button onclick="carregarDivisoes()">Carregar divisões</button>
+
+
+<h2>Divisão</h2>
+
+<select id="divisoes"></select>
+
+<button onclick="carregarItens()">Abrir checklist</button>
+
+
+<h2>Checklist</h2>
+
+<div id="itens"></div>
+
+</div>
+
+
+<script>
+
+let usuarioId=null
+
+async function login(){
+
+const email=document.getElementById("email").value
+const senha=document.getElementById("senha").value
+
+const resposta=await fetch("http://localhost:3000/usuarios/login",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+email,
+senha
+})
+
+})
+
+const dados=await resposta.json()
+
+usuarioId=dados.usuario.id
+
+alert("Login realizado")
+
+carregarPostos()
+
+}
+
+
+async function carregarPostos(){
+
+const resposta=await fetch("http://localhost:3000/postos")
+
+const postos=await resposta.json()
+
+const select=document.getElementById("postos")
+
+select.innerHTML=""
+
+postos.forEach(p=>{
+
+const option=document.createElement("option")
+
+option.value=p.id
+option.text=p.nome
+
+select.appendChild(option)
+
+})
+
+}
+
+
+async function carregarDivisoes(){
+
+const postoId=document.getElementById("postos").value
+
+const resposta=await fetch(`http://localhost:3000/postos/${postoId}/divisoes`)
+
+const divisoes=await resposta.json()
+
+const select=document.getElementById("divisoes")
+
+select.innerHTML=""
+
+divisoes.forEach(d=>{
+
+const option=document.createElement("option")
+
+option.value=d.id
+option.text=d.nome
+
+select.appendChild(option)
+
+})
+
+}
+
+
+async function carregarItens(){
+
+const divisaoId=document.getElementById("divisoes").value
+
+const resposta=await fetch(`http://localhost:3000/divisoes/${divisaoId}/itens`)
+
+const itens=await resposta.json()
+
+const container=document.getElementById("itens")
+
+container.innerHTML=""
+
+itens.forEach(item=>{
+
+const div=document.createElement("div")
+
+div.className="item"
+
+div.innerHTML=`
+<input type="checkbox">
+<b>${item.nome}</b>
+(qtd padrão ${item.quantidade_padrao})
+`
+
+container.appendChild(div)
+
+
+item.subitens.forEach(sub=>{
+
+const subDiv=document.createElement("div")
+
+subDiv.className="subitem"
+
+subDiv.innerHTML=`
+<input type="checkbox">
+${sub.nome}
+(qtd padrão ${sub.quantidade_padrao})
+`
+
+container.appendChild(subDiv)
+
+})
+
+})
+
+}
+
+</script>
+
+</body>
+
+</html>
