@@ -1,114 +1,190 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="pt-br">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Dashboard Administrador</title>
-
+<title>Painel Admin</title>
 <style>
-
-body{
-
-font-family:Arial;
-background:#eef2f5;
-padding:30px;
-
-}
-
-.container{
-
-max-width:900px;
-margin:auto;
-
-}
-
-.posto{
-
-padding:15px;
-margin-bottom:15px;
-border-radius:8px;
-color:white;
-cursor:pointer;
-
-}
-
-.verde{
-
-background:#2e7d32;
-
-}
-
-.vermelho{
-
-background:#c62828;
-
-}
-
+body{font-family:Arial;background:#eef2f5;margin:0}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
+.btn-primary{background:#1e88e5;color:#fff}
+.btn-danger{background:#e53935;color:#fff}
+.card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
+.list-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #ececec}
+.list-item:last-child{border-bottom:none}
+.tag{padding:3px 8px;border-radius:20px;background:#eee;font-size:12px}
 </style>
-
 </head>
-
 <body>
+<div class="wrap">
+  <h1>Painel do Administrador</h1>
 
-<div class="container">
+  <div class="card">
+    <div class="row">
+      <button class="btn-primary" onclick="window.location='cadastro-posto.html'">Cadastrar postos</button>
+      <button class="btn-primary" onclick="criarTarefa()">Adicionar tarefa diária</button>
+      <button class="btn-primary" onclick="carregarConferencias()">Verificar conferência dos postos</button>
+      <button class="btn-danger" onclick="logout()">Sair</button>
+    </div>
+  </div>
 
-<h1>Postos de Guarda-Vidas</h1>
+  <div class="card">
+    <h3>Gestão de postos (incluir / editar / excluir)</h3>
+    <div id="postosCrud">Carregando...</div>
+  </div>
 
-<div id="postos"></div>
+  <div class="card">
+    <h3>Tarefas diárias (incluir / editar / excluir)</h3>
+    <div id="tarefasCrud">Carregando...</div>
+  </div>
 
+  <div class="card">
+    <h3>Conferência dos postos</h3>
+    <div id="conferencias">Carregando...</div>
+  </div>
+
+  <div class="card">
+    <h3>Problemas reportados pelos guarda-vidas</h3>
+    <div id="alteracoes">Carregando...</div>
+  </div>
 </div>
 
 <script>
+if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
 
-async function carregarDashboard(){
+async function carregarPostosCrud(){
+  const res = await fetch('/postos');
+  const postos = await res.json();
+  const container = document.getElementById('postosCrud');
+  container.innerHTML = '';
+  if(!postos.length){ container.innerHTML = '<p>Nenhum posto cadastrado.</p>'; return; }
 
-const resposta = await fetch("http://localhost:3000/dashboard/postos")
-
-const postos = await resposta.json()
-
-const container = document.getElementById("postos")
-
-container.innerHTML = ""
-
-postos.forEach(p => {
-
-const div = document.createElement("div")
-
-div.className = "posto"
-
-if(p.ultima_conferencia){
-
-div.classList.add("verde")
-
-}else{
-
-div.classList.add("vermelho")
-
+  postos.forEach((p) => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `<div><b>${p.nome}</b> <small>(ID ${p.id})</small></div>
+      <div>
+        <button onclick="editarPosto(${p.id})">Editar</button>
+        <button class="btn-danger" onclick="excluirPosto(${p.id})">Excluir</button>
+      </div>`;
+    container.appendChild(div);
+  });
 }
 
-div.innerHTML = `
+async function carregarTarefasCrud(){
+  const res = await fetch('/tarefas');
+  const tarefas = await res.json();
+  const container = document.getElementById('tarefasCrud');
+  container.innerHTML = '';
+  if(!tarefas.length){ container.innerHTML = '<p>Nenhuma tarefa cadastrada.</p>'; return; }
 
-<h3>${p.nome}</h3>
-
-Última conferência: ${p.ultima_conferencia || "Nunca"}
-
-Guarda-vidas: ${p.ultimo_usuario || "-"}
-
-`
-
-container.appendChild(div)
-
-})
-
+  tarefas.forEach((t) => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `<div><b>${t.descricao}</b> ${t.ativa ? '<span class="tag">ativa</span>' : ''}</div>
+      <div>
+        <button onclick="editarTarefa(${t.id}, '${t.descricao.replace(/'/g, "\\'")}', ${t.ativa})">Editar</button>
+        <button class="btn-danger" onclick="excluirTarefa(${t.id})">Excluir</button>
+      </div>`;
+    container.appendChild(div);
+  });
 }
 
-carregarDashboard()
+async function carregarConferencias(){
+  const resposta = await fetch('/dashboard/postos');
+  const postos = await resposta.json();
+  const container = document.getElementById('conferencias');
+  container.innerHTML = '';
 
+  if(!postos.length){ container.innerHTML = '<p>Nenhum posto cadastrado.</p>'; return; }
+
+  postos.forEach((p) => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `<div><b>${p.nome}</b><br><small>Última conferência: ${p.ultima_conferencia || 'Nunca'} | Guarda-vidas: ${p.ultimo_usuario || '-'}</small></div>`;
+    container.appendChild(div);
+  });
+}
+
+async function carregarAlteracoes(){
+  const res = await fetch('/dashboard/alteracoes');
+  const alteracoes = await res.json();
+  const container = document.getElementById('alteracoes');
+  container.innerHTML = '';
+
+  if(!alteracoes.length){ container.innerHTML = '<p>Sem problemas pendentes.</p>'; return; }
+
+  alteracoes.forEach((a) => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      <div>
+        <b>${a.posto_nome} / ${a.divisao_nome}</b> - ${a.item_nome}<br>
+        <small>${a.descricao} | Qtd encontrada: ${a.quantidade_encontrada ?? '-'} / padrão: ${a.quantidade_padrao}</small>
+      </div>
+      <div>
+        <span class="tag">${a.status}</span>
+        <button onclick="atualizarProblema(${a.id})">Atualizar</button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+async function atualizarProblema(id){
+  const status = prompt('Novo status (pendente, em_correcao, resolvido):', 'em_correcao');
+  if(!status) return;
+  const resolucao = prompt('Observação de atualização (opcional):', '');
+
+  await fetch(`/dashboard/alteracoes/${id}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status, resolucao})
+  });
+
+  carregarAlteracoes();
+}
+
+function editarPosto(id){
+  window.location = `cadastro-posto.html?id=${id}`;
+}
+
+async function excluirPosto(id){
+  if(!confirm('Excluir este posto?')) return;
+  await fetch(`/postos/${id}`, {method:'DELETE'});
+  carregarPostosCrud();
+  carregarConferencias();
+}
+
+async function criarTarefa(){
+  const descricao = prompt('Descrição da tarefa diária:');
+  if(!descricao) return;
+  await fetch('/tarefas', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({descricao})});
+  carregarTarefasCrud();
+}
+
+async function editarTarefa(id, descricaoAtual, ativaAtual){
+  const descricao = prompt('Nova descrição da tarefa:', descricaoAtual);
+  if(!descricao) return;
+  const ativa = confirm('Marcar tarefa como ativa?\n(OK = ativa, Cancelar = inativa)');
+  await fetch(`/tarefas/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({descricao, ativa: ativaAtual ? ativa : ativa})});
+  carregarTarefasCrud();
+}
+
+async function excluirTarefa(id){
+  if(!confirm('Excluir esta tarefa diária?')) return;
+  await fetch(`/tarefas/${id}`, {method:'DELETE'});
+  carregarTarefasCrud();
+}
+
+function logout(){ localStorage.clear(); window.location='login.html'; }
+
+carregarPostosCrud();
+carregarTarefasCrud();
+carregarConferencias();
+carregarAlteracoes();
 </script>
-
 </body>
-
 </html>

@@ -1,222 +1,192 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Checklist</title>
-
+<title>Conferência de Itens</title>
 <style>
-
-body{
-margin:0;
-font-family:Arial;
-background:#f4f6f9;
+:root{
+  --bg:#f2f2f2;
+  --card:#e9e9e9;
+  --text:#2f2f2f;
+  --muted:#8b8b8b;
+  --ok:#1f9d55;
 }
-
-.header{
-background:white;
-padding:14px;
-display:flex;
-align-items:center;
-gap:10px;
-border-bottom:1px solid #ddd;
-}
-
-.voltar{
-cursor:pointer;
-font-size:20px;
-}
-
-.container{
-padding:15px;
-}
-
-.item{
-background:white;
-border-radius:10px;
-padding:15px;
-margin-bottom:10px;
-display:flex;
-align-items:center;
-justify-content:space-between;
-box-shadow:0 2px 6px rgba(0,0,0,0.08);
-}
-
-.nome{
-font-weight:bold;
-}
-
-.sub{
-font-size:13px;
-color:#777;
-}
-
-/* SWITCH */
-
-.switch{
-position:relative;
-display:inline-block;
-width:44px;
-height:24px;
-}
-
-.switch input{
-opacity:0;
-width:0;
-height:0;
-}
-
-.slider{
-position:absolute;
-cursor:pointer;
-top:0;
-left:0;
-right:0;
-bottom:0;
-background:#ccc;
-transition:.3s;
-border-radius:24px;
-}
-
-.slider:before{
-position:absolute;
-content:"";
-height:18px;
-width:18px;
-left:3px;
-bottom:3px;
-background:white;
-transition:.3s;
-border-radius:50%;
-}
-
-input:checked + .slider{
-background:#4caf50;
-}
-
-input:checked + .slider:before{
-transform:translateX(20px);
-}
-
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.topbar{height:56px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:10}
+.back{font-size:22px;cursor:pointer}
+.title{font-size:14px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.container{padding:10px 8px 88px 8px;max-width:460px;margin:0 auto}
+.item-card{background:var(--card);border-radius:10px;padding:10px;margin-bottom:8px;border:1px solid #e2e2e2}
+.item-main{display:flex;align-items:center;gap:8px}
+.drag{display:flex;flex-direction:column;gap:2px;color:#9a9a9a;font-weight:bold;line-height:8px}
+.name{flex:1;font-size:17px}
+.name small{font-size:15px;color:#444}
+.okline{color:var(--ok);font-weight:bold}
+.switch{position:relative;display:inline-block;width:46px;height:26px}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#bcbcbc;transition:.25s;border-radius:26px}
+.slider:before{position:absolute;content:"";height:20px;width:20px;left:3px;bottom:3px;background:#fff;transition:.25s;border-radius:50%}
+input:checked + .slider{background:#8f8f8f}
+input:checked + .slider:before{transform:translateX(20px)}
+.link{margin-top:8px;font-size:13px;color:#4f4f4f;text-decoration:underline;cursor:pointer;display:inline-block}
+.details{display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #cfcfcf}
+.details.show{display:block}
+.row{display:flex;gap:8px;align-items:center}
+input[type="number"],textarea{width:100%;border:1px solid #c6c6c6;border-radius:8px;padding:8px;background:#fff}
+.warn{font-size:12px;color:#c62828;margin-top:4px;display:none}
+.warn.show{display:block}
+.btn-secondary{border:none;background:#666;color:#fff;padding:8px 10px;border-radius:8px;cursor:pointer}
+.footer{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ddd;padding:10px}
+.footer button{width:100%;padding:12px;border:none;border-radius:10px;background:#1769aa;color:#fff;font-size:16px;font-weight:bold}
+.footer button:disabled{background:#99b7d0}
 </style>
-
 </head>
-
 <body>
+  <div class="topbar">
+    <div class="back" onclick="voltar()">←</div>
+    <div class="title">Conferência de itens da divisão</div>
+  </div>
 
-<div class="header">
+  <div class="container" id="lista"></div>
 
-<div class="voltar" onclick="voltar()">←</div>
-
-<div>Checklist</div>
-
-</div>
-
-<div class="container" id="lista"></div>
+  <div class="footer">
+    <button id="btnFinalizar" onclick="concluirDivisao()" disabled>Finalizar conferência da divisão</button>
+  </div>
 
 <script>
+const usuario = localStorage.getItem('usuario_id');
+const posto = localStorage.getItem('posto_id');
+const divisao = localStorage.getItem('divisao_id');
 
-const usuario = localStorage.getItem("usuario_id")
-const posto = localStorage.getItem("posto_id")
-const divisao = localStorage.getItem("divisao_id")
-
-let totalItens = 0
-let itensMarcados = 0
+let itens = [];
+const revisados = new Set();
+const alteracoes = new Map();
 
 async function carregarItens(){
+  const res = await fetch('/divisoes/'+divisao+'/itens');
+  const data = await res.json();
 
-const res = await fetch("/divisoes/"+divisao+"/itens")
-const itens = await res.json()
+  if(!res.ok){
+    alert(data.erro || 'Erro ao carregar itens');
+    return;
+  }
 
-const lista = document.getElementById("lista")
+  itens = data;
 
-lista.innerHTML=""
+  const lista = document.getElementById('lista');
+  lista.innerHTML='';
 
-itens.forEach(i=>{
+  itens.forEach((i) => {
+    const card = document.createElement('div');
+    card.className='item-card';
+    card.innerHTML = `
+      <div class="item-main">
+        <div class="drag"><span>•</span><span>•</span><span>•</span></div>
+        <div class="name">
+          <div class="okline">✓ <small>1x ${i.nome}</small></div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="ok-${i.id}" onchange="toggleRevisado(${i.id})">
+          <span class="slider"></span>
+        </label>
+      </div>
 
-totalItens++
+      <span class="link" onclick="toggleDetalhes(${i.id})">reportar problema / quantidade</span>
 
-const item = document.createElement("div")
-
-item.className="item"
-
-item.innerHTML=`
-
-<div>
-
-<div class="nome">${i.nome}</div>
-<div class="sub">Quantidade esperada: ${i.quantidade_padrao}</div>
-
-</div>
-
-<label class="switch">
-
-<input type="checkbox" onchange="toggleItem(this)">
-
-<span class="slider"></span>
-
-</label>
-
-`
-
-lista.appendChild(item)
-
-})
-
+      <div class="details" id="details-${i.id}">
+        <div class="row">
+          <label style="font-size:13px">Qtd padrão: <b>${i.quantidade_padrao}</b></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input type="number" id="qtd-${i.id}" min="0" value="${i.quantidade_padrao}" oninput="avaliarQuantidade(${i.id}, ${i.quantidade_padrao})">
+        </div>
+        <div class="warn" id="warn-${i.id}">Quantidade abaixo do padrão.</div>
+        <div class="row" style="margin-top:6px">
+          <textarea id="desc-${i.id}" rows="2" placeholder="Descreva avaria/problema"></textarea>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn-secondary" onclick="salvarAlteracaoItem(${i.id})">Salvar alteração</button>
+        </div>
+      </div>
+    `;
+    lista.appendChild(card);
+  });
 }
 
-function toggleItem(el){
-
-if(el.checked){
-itensMarcados++
-}else{
-itensMarcados--
+function toggleDetalhes(itemId){
+  const box = document.getElementById(`details-${itemId}`);
+  box.classList.toggle('show');
 }
 
-if(itensMarcados === totalItens){
-
-registrar()
-
+function toggleRevisado(itemId){
+  const check = document.getElementById(`ok-${itemId}`);
+  if(check.checked){
+    revisados.add(itemId);
+    salvarAlteracaoItem(itemId);
+  }else{
+    revisados.delete(itemId);
+  }
+  atualizarBotaoFinalizar();
 }
 
+function avaliarQuantidade(itemId, padrao){
+  const qtd = Number(document.getElementById(`qtd-${itemId}`).value || 0);
+  const warn = document.getElementById(`warn-${itemId}`);
+  if(qtd < padrao){ warn.classList.add('show'); }
+  else { warn.classList.remove('show'); }
 }
 
-async function registrar(){
+function salvarAlteracaoItem(itemId){
+  const item = itens.find((it) => it.id === itemId);
+  const qtd = Number(document.getElementById(`qtd-${itemId}`).value || 0);
+  const desc = document.getElementById(`desc-${itemId}`).value.trim();
+  const abaixoPadrao = qtd < Number(item.quantidade_padrao || 0);
 
-await fetch("/divisoes/conferir",{
-
-method:"POST",
-
-headers:{
-"Content-Type":"application/json"
-},
-
-body:JSON.stringify({
-
-posto_id:posto,
-divisao_id:divisao,
-usuario_id:usuario
-
-})
-
-})
-
-alert("Divisão conferida")
-
-window.location="divisoes.html"
-
+  if(abaixoPadrao || desc){
+    alteracoes.set(itemId, {
+      item_id: itemId,
+      quantidade_encontrada: qtd,
+      descricao: desc
+    });
+  } else {
+    alteracoes.delete(itemId);
+  }
 }
 
-function voltar(){
-window.location="divisoes.html"
+function atualizarBotaoFinalizar(){
+  const pronto = itens.length > 0 && revisados.size === itens.length;
+  document.getElementById('btnFinalizar').disabled = !pronto;
 }
 
-carregarItens()
+async function concluirDivisao(){
+  const body = {
+    posto_id: posto,
+    divisao_id: divisao,
+    usuario_id: usuario,
+    alteracoes: Array.from(alteracoes.values())
+  };
 
+  const res = await fetch('/divisoes/conferir', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  if(!res.ok){
+    alert(data.erro || 'Erro ao concluir divisão');
+    return;
+  }
+
+  alert(data.mensagem || 'Divisão conferida');
+  window.location='divisoes.html';
+}
+
+function voltar(){ window.location='divisoes.html'; }
+
+carregarItens();
 </script>
-
 </body>
 </html>
