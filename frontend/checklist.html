@@ -1,222 +1,148 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Checklist</title>
-
 <style>
-
-body{
-margin:0;
-font-family:Arial;
-background:#f4f6f9;
-}
-
-.header{
-background:white;
-padding:14px;
-display:flex;
-align-items:center;
-gap:10px;
-border-bottom:1px solid #ddd;
-}
-
-.voltar{
-cursor:pointer;
-font-size:20px;
-}
-
-.container{
-padding:15px;
-}
-
-.item{
-background:white;
-border-radius:10px;
-padding:15px;
-margin-bottom:10px;
-display:flex;
-align-items:center;
-justify-content:space-between;
-box-shadow:0 2px 6px rgba(0,0,0,0.08);
-}
-
-.nome{
-font-weight:bold;
-}
-
-.sub{
-font-size:13px;
-color:#777;
-}
-
-/* SWITCH */
-
-.switch{
-position:relative;
-display:inline-block;
-width:44px;
-height:24px;
-}
-
-.switch input{
-opacity:0;
-width:0;
-height:0;
-}
-
-.slider{
-position:absolute;
-cursor:pointer;
-top:0;
-left:0;
-right:0;
-bottom:0;
-background:#ccc;
-transition:.3s;
-border-radius:24px;
-}
-
-.slider:before{
-position:absolute;
-content:"";
-height:18px;
-width:18px;
-left:3px;
-bottom:3px;
-background:white;
-transition:.3s;
-border-radius:50%;
-}
-
-input:checked + .slider{
-background:#4caf50;
-}
-
-input:checked + .slider:before{
-transform:translateX(20px);
-}
-
+body{margin:0;font-family:Arial;background:#f4f6f9}
+.header{background:#fff;padding:14px;display:flex;gap:10px;border-bottom:1px solid #ddd}
+.container{padding:15px;max-width:900px;margin:0 auto}
+.item{background:#fff;border-radius:10px;padding:15px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+input,textarea,button{padding:8px;border-radius:6px;border:1px solid #ccc}
+button{cursor:pointer;border:none}
+.ok{background:#43a047;color:#fff}
+.prob{background:#fb8c00;color:#fff}
+.finalizar{background:#1565c0;color:#fff;width:100%;padding:12px;font-size:16px}
+.warn{color:#d84315;font-weight:bold}
 </style>
-
 </head>
-
 <body>
-
 <div class="header">
-
-<div class="voltar" onclick="voltar()">←</div>
-
-<div>Checklist</div>
-
+  <div onclick="voltar()" style="cursor:pointer">←</div>
+  <div>Checklist da divisão</div>
 </div>
-
-<div class="container" id="lista"></div>
+<div class="container">
+  <div id="lista"></div>
+  <button class="finalizar" id="btnFinalizar" onclick="concluirDivisao()" disabled>Concluir divisão</button>
+</div>
 
 <script>
+const usuario = localStorage.getItem('usuario_id');
+const posto = localStorage.getItem('posto_id');
+const divisao = localStorage.getItem('divisao_id');
 
-const usuario = localStorage.getItem("usuario_id")
-const posto = localStorage.getItem("posto_id")
-const divisao = localStorage.getItem("divisao_id")
-
-let totalItens = 0
-let itensMarcados = 0
+let itens = [];
+const revisados = new Set();
+const alteracoes = new Map();
 
 async function carregarItens(){
+  const res = await fetch('/divisoes/'+divisao+'/itens');
+  itens = await res.json();
 
-const res = await fetch("/divisoes/"+divisao+"/itens")
-const itens = await res.json()
+  const lista = document.getElementById('lista');
+  lista.innerHTML='';
 
-const lista = document.getElementById("lista")
-
-lista.innerHTML=""
-
-itens.forEach(i=>{
-
-totalItens++
-
-const item = document.createElement("div")
-
-item.className="item"
-
-item.innerHTML=`
-
-<div>
-
-<div class="nome">${i.nome}</div>
-<div class="sub">Quantidade esperada: ${i.quantidade_padrao}</div>
-
-</div>
-
-<label class="switch">
-
-<input type="checkbox" onchange="toggleItem(this)">
-
-<span class="slider"></span>
-
-</label>
-
-`
-
-lista.appendChild(item)
-
-})
-
+  itens.forEach((i) => {
+    const item = document.createElement('div');
+    item.className='item';
+    item.innerHTML = `
+      <div><b>${i.nome}</b></div>
+      <div>Quantidade padrão: <b>${i.quantidade_padrao}</b> <span id="flag-${i.id}" class="warn"></span></div>
+      <div class="row">
+        <label>Quantidade encontrada:</label>
+        <input type="number" id="qtd-${i.id}" value="${i.quantidade_padrao}" min="0" onchange="avaliarQuantidade(${i.id}, ${i.quantidade_padrao})">
+      </div>
+      <div class="row">
+        <button class="ok" onclick="marcarOk(${i.id})">Marcar OK</button>
+        <button class="prob" onclick="reportarAlteracao(${i.id})">Reportar alteração</button>
+      </div>
+      <div class="row">
+        <textarea id="desc-${i.id}" rows="2" style="width:100%" placeholder="Descreva avaria/problema (opcional)"></textarea>
+      </div>
+    `;
+    lista.appendChild(item);
+  });
 }
 
-function toggleItem(el){
+function avaliarQuantidade(itemId, padrao){
+  const qtd = Number(document.getElementById(`qtd-${itemId}`).value || 0);
+  const flag = document.getElementById(`flag-${itemId}`);
 
-if(el.checked){
-itensMarcados++
-}else{
-itensMarcados--
+  if(qtd < padrao){
+    flag.innerText = '⚠ Quantidade abaixo do padrão';
+  }else{
+    flag.innerText = '';
+  }
 }
 
-if(itensMarcados === totalItens){
-
-registrar()
-
+function marcarOk(itemId){
+  registrarAlteracaoItem(itemId);
+  revisados.add(itemId);
+  atualizarBotaoFinalizar();
+  alert('Item marcado como revisado.');
 }
 
+function reportarAlteracao(itemId){
+  registrarAlteracaoItem(itemId);
+  revisados.add(itemId);
+  atualizarBotaoFinalizar();
+  alert('Alteração registrada no item.');
 }
 
-async function registrar(){
+function registrarAlteracaoItem(itemId){
+  const item = itens.find((it) => it.id === itemId);
+  const qtd = Number(document.getElementById(`qtd-${itemId}`).value || 0);
+  const desc = document.getElementById(`desc-${itemId}`).value.trim();
 
-await fetch("/divisoes/conferir",{
+  const payload = {
+    item_id: itemId,
+    quantidade_encontrada: qtd,
+    descricao: desc
+  };
 
-method:"POST",
-
-headers:{
-"Content-Type":"application/json"
-},
-
-body:JSON.stringify({
-
-posto_id:posto,
-divisao_id:divisao,
-usuario_id:usuario
-
-})
-
-})
-
-alert("Divisão conferida")
-
-window.location="divisoes.html"
-
+  const abaixoPadrao = qtd < Number(item.quantidade_padrao || 0);
+  if(abaixoPadrao || desc){
+    alteracoes.set(itemId, payload);
+  } else {
+    alteracoes.delete(itemId);
+  }
 }
 
-function voltar(){
-window.location="divisoes.html"
+function atualizarBotaoFinalizar(){
+  const pronto = revisados.size === itens.length && itens.length > 0;
+  document.getElementById('btnFinalizar').disabled = !pronto;
 }
 
-carregarItens()
+async function concluirDivisao(){
+  const body = {
+    posto_id: posto,
+    divisao_id: divisao,
+    usuario_id: usuario,
+    alteracoes: Array.from(alteracoes.values())
+  };
 
+  const res = await fetch('/divisoes/conferir', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+
+  if(!res.ok){
+    alert(data.erro || 'Erro ao concluir divisão');
+    return;
+  }
+
+  alert(data.mensagem || 'Divisão conferida');
+  window.location='divisoes.html';
+}
+
+function voltar(){ window.location='divisoes.html'; }
+
+carregarItens();
 </script>
-
 </body>
 </html>
