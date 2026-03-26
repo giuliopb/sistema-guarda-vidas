@@ -23,9 +23,7 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 
   <div class="card">
     <div class="row">
-      <button class="btn-primary" onclick="criarPosto()">Cadastrar postos</button>
-      <button class="btn-primary" onclick="criarDivisao()">Cadastrar divisões</button>
-      <button class="btn-primary" onclick="criarItem()">Cadastrar itens</button>
+      <button class="btn-primary" onclick="window.location='cadastro-posto.html'">Cadastrar postos</button>
       <button class="btn-primary" onclick="criarTarefa()">Adicionar tarefa diária</button>
       <button class="btn-primary" onclick="carregarConferencias()">Verificar conferência dos postos</button>
       <button class="btn-danger" onclick="logout()">Sair</button>
@@ -149,14 +147,6 @@ async function atualizarProblema(id){
   carregarAlteracoes();
 }
 
-async function criarPosto(){
-  const nome = prompt('Nome do posto:');
-  if(!nome) return;
-  await fetch('/postos', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({nome})});
-  carregarPostosCrud();
-  carregarConferencias();
-}
-
 async function editarPosto(id, nomeAtual){
   const nome = prompt('Novo nome do posto:', nomeAtual);
   if(!nome) return;
@@ -170,21 +160,6 @@ async function excluirPosto(id){
   await fetch(`/postos/${id}`, {method:'DELETE'});
   carregarPostosCrud();
   carregarConferencias();
-}
-
-async function criarDivisao(){
-  const postoId = prompt('ID do posto para adicionar divisão:');
-  const nome = prompt('Nome da divisão:');
-  if(!postoId || !nome) return;
-  await fetch(`/postos/${postoId}/divisoes`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({nome})});
-}
-
-async function criarItem(){
-  const divisaoId = prompt('ID da divisão para adicionar item:');
-  const nome = prompt('Nome do item:');
-  const quantidade_padrao = prompt('Quantidade padrão:', '0');
-  if(!divisaoId || !nome) return;
-  await fetch(`/postos/divisoes/${divisaoId}/itens`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({nome, quantidade_padrao})});
 }
 
 async function criarTarefa(){

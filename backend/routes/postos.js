@@ -32,6 +32,84 @@ router.post('/', async (req, res) => {
     }
 });
 
+router.post('/completo', async (req, res) => {
+    const { nome, divisoes } = req.body;
+
+    if (!nome || !nome.trim()) {
+        return res.status(400).json({ erro: 'Nome do posto é obrigatório' });
+    }
+
+    if (!Array.isArray(divisoes) || divisoes.length === 0) {
+        return res.status(400).json({ erro: 'O posto deve ter ao menos 1 divisão' });
+    }
+
+    for (const divisao of divisoes) {
+        if (!divisao.nome || !divisao.nome.trim()) {
+            return res.status(400).json({ erro: 'Todas as divisões precisam de nome' });
+        }
+
+        if (!Array.isArray(divisao.itens) || divisao.itens.length === 0) {
+            return res.status(400).json({ erro: `A divisão "${divisao.nome}" deve ter ao menos 1 item` });
+        }
+    }
+
+    const nomesUnicos = new Set(divisoes.map((d) => d.nome.trim().toLowerCase()));
+    if (nomesUnicos.size !== divisoes.length) {
+        return res.status(400).json({ erro: 'As divisões de um posto devem ter nomes únicos' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const postoResult = await client.query(
+            'INSERT INTO postos (nome) VALUES ($1) RETURNING id, nome',
+            [nome.trim()]
+        );
+
+        const posto = postoResult.rows[0];
+
+        for (const divisao of divisoes) {
+            const divisaoResult = await client.query(
+                'INSERT INTO divisoes (nome, posto_id) VALUES ($1, $2) RETURNING id, nome',
+                [divisao.nome.trim(), posto.id]
+            );
+
+            const divisaoCriada = divisaoResult.rows[0];
+
+            for (const item of divisao.itens) {
+                const nomeItem = (item.nome || '').trim();
+                if (!nomeItem) {
+                    throw new Error(`Item sem nome na divisão ${divisaoCriada.nome}`);
+                }
+
+                await client.query(
+                    'INSERT INTO itens (nome, divisao_id, quantidade_padrao) VALUES ($1, $2, $3)',
+                    [
+                        nomeItem,
+                        divisaoCriada.id,
+                        Number(item.quantidade_padrao || 0)
+                    ]
+                );
+            }
+        }
+
+        await client.query('COMMIT');
+
+        res.status(201).json({
+            mensagem: 'Posto cadastrado com divisões e itens',
+            posto
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao criar posto completo' });
+    } finally {
+        client.release();
+    }
+});
+
 router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { nome } = req.body;
@@ -59,18 +137,33 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
     const { id } = req.params;
+    const client = await pool.connect();
 
     try {
-        const result = await pool.query('DELETE FROM postos WHERE id = $1 RETURNING id', [id]);
+        await client.query('BEGIN');
 
-        if (!result.rows.length) {
+        const postoResult = await client.query('SELECT id FROM postos WHERE id = $1', [id]);
+        if (!postoResult.rows.length) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ erro: 'Posto não encontrado' });
         }
 
-        res.json({ ok: true });
+        await client.query(
+            `DELETE FROM itens
+             WHERE divisao_id IN (SELECT id FROM divisoes WHERE posto_id = $1)`,
+            [id]
+        );
+        await client.query('DELETE FROM divisoes WHERE posto_id = $1', [id]);
+        await client.query('DELETE FROM postos WHERE id = $1', [id]);
+
+        await client.query('COMMIT');
+        res.json({ ok: true, mensagem: 'Posto, divisões e itens excluídos' });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error(error);
         res.status(500).json({ erro: 'Erro ao excluir posto' });
+    } finally {
+        client.release();
     }
 });
 
@@ -99,6 +192,15 @@ router.post('/:id/divisoes', async (req, res) => {
     }
 
     try {
+        const conflito = await pool.query(
+            'SELECT id FROM divisoes WHERE posto_id = $1 AND LOWER(nome) = LOWER($2) LIMIT 1',
+            [postoId, nome.trim()]
+        );
+
+        if (conflito.rows.length) {
+            return res.status(400).json({ erro: 'Esta divisão já existe neste posto' });
+        }
+
         const result = await pool.query(
             'INSERT INTO divisoes (nome, posto_id) VALUES ($1, $2) RETURNING *',
             [nome.trim(), postoId]
@@ -120,14 +222,27 @@ router.put('/divisoes/:id', async (req, res) => {
     }
 
     try {
+        const divisaoAtual = await pool.query('SELECT posto_id FROM divisoes WHERE id = $1', [id]);
+
+        if (!divisaoAtual.rows.length) {
+            return res.status(404).json({ erro: 'Divisão não encontrada' });
+        }
+
+        const conflito = await pool.query(
+            `SELECT id FROM divisoes
+             WHERE posto_id = $1 AND LOWER(nome) = LOWER($2) AND id <> $3
+             LIMIT 1`,
+            [divisaoAtual.rows[0].posto_id, nome.trim(), id]
+        );
+
+        if (conflito.rows.length) {
+            return res.status(400).json({ erro: 'Já existe divisão com esse nome neste posto' });
+        }
+
         const result = await pool.query(
             'UPDATE divisoes SET nome = $1 WHERE id = $2 RETURNING *',
             [nome.trim(), id]
         );
-
-        if (!result.rows.length) {
-            return res.status(404).json({ erro: 'Divisão não encontrada' });
-        }
 
         res.json(result.rows[0]);
     } catch (error) {
@@ -140,6 +255,7 @@ router.delete('/divisoes/:id', async (req, res) => {
     const { id } = req.params;
 
     try {
+        await pool.query('DELETE FROM itens WHERE divisao_id = $1', [id]);
         const result = await pool.query('DELETE FROM divisoes WHERE id = $1 RETURNING id', [id]);
 
         if (!result.rows.length) {
@@ -176,6 +292,7 @@ router.post('/divisoes/:id/itens', async (req, res) => {
     if (!nome || !nome.trim()) {
         return res.status(400).json({ erro: 'Nome do item é obrigatório' });
     }
+});
 
     try {
         const result = await pool.query(
