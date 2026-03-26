@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Checklist</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#f4f6f9;
+}
+
+.header{
+background:white;
+padding:14px;
+display:flex;
+align-items:center;
+gap:10px;
+border-bottom:1px solid #ddd;
+}
+
+.voltar{
+cursor:pointer;
+font-size:20px;
+}
+
+.container{
+padding:15px;
+}
+
+.item{
+background:white;
+border-radius:10px;
+padding:15px;
+margin-bottom:10px;
+display:flex;
+align-items:center;
+justify-content:space-between;
+box-shadow:0 2px 6px rgba(0,0,0,0.08);
+}
+
+.nome{
+font-weight:bold;
+}
+
+.sub{
+font-size:13px;
+color:#777;
+}
+
+/* SWITCH */
+
+.switch{
+position:relative;
+display:inline-block;
+width:44px;
+height:24px;
+}
+
+.switch input{
+opacity:0;
+width:0;
+height:0;
+}
+
+.slider{
+position:absolute;
+cursor:pointer;
+top:0;
+left:0;
+right:0;
+bottom:0;
+background:#ccc;
+transition:.3s;
+border-radius:24px;
+}
+
+.slider:before{
+position:absolute;
+content:"";
+height:18px;
+width:18px;
+left:3px;
+bottom:3px;
+background:white;
+transition:.3s;
+border-radius:50%;
+}
+
+input:checked + .slider{
+background:#4caf50;
+}
+
+input:checked + .slider:before{
+transform:translateX(20px);
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<div class="voltar" onclick="voltar()">←</div>
+
+<div>Checklist</div>
+
+</div>
+
+<div class="container" id="lista"></div>
+
+<script>
+
+const usuario = localStorage.getItem("usuario_id")
+const posto = localStorage.getItem("posto_id")
+const divisao = localStorage.getItem("divisao_id")
+
+let totalItens = 0
+let itensMarcados = 0
+
+async function carregarItens(){
+
+const res = await fetch("/divisoes/"+divisao+"/itens")
+const itens = await res.json()
+
+const lista = document.getElementById("lista")
+
+lista.innerHTML=""
+
+itens.forEach(i=>{
+
+totalItens++
+
+const item = document.createElement("div")
+
+item.className="item"
+
+item.innerHTML=`
+
+<div>
+
+<div class="nome">${i.nome}</div>
+<div class="sub">Quantidade esperada: ${i.quantidade_padrao}</div>
+
+</div>
+
+<label class="switch">
+
+<input type="checkbox" onchange="toggleItem(this)">
+
+<span class="slider"></span>
+
+</label>
+
+`
+
+lista.appendChild(item)
+
+})
+
+}
+
+function toggleItem(el){
+
+if(el.checked){
+itensMarcados++
+}else{
+itensMarcados--
+}
+
+if(itensMarcados === totalItens){
+
+registrar()
+
+}
+
+}
+
+async function registrar(){
+
+await fetch("/divisoes/conferir",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+
+posto_id:posto,
+divisao_id:divisao,
+usuario_id:usuario
+
+})
+
+})
+
+alert("Divisão conferida")
+
+window.location="divisoes.html"
+
+}
+
+function voltar(){
+window.location="divisoes.html"
+}
+
+carregarItens()
+
+</script>
+
+</body>
+</html>

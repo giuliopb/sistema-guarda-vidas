@@ -1,20 +1,222 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 
 <head>
-    <title>Sistema Guarda Vidas</title>
+
+<meta charset="UTF-8">
+<title>Sistema Guarda-Vidas</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+height:100vh;
+display:flex;
+background:#f4f6f9;
+}
+
+.container{
+display:flex;
+width:100%;
+height:100vh;
+}
+
+/* LADO ESQUERDO */
+
+.left{
+flex:1;
+background:linear-gradient(135deg,#005aa7,#003d73);
+color:white;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+padding:40px;
+text-align:center;
+}
+
+.left h1{
+font-size:36px;
+margin-bottom:10px;
+}
+
+.left p{
+font-size:18px;
+opacity:0.9;
+max-width:400px;
+}
+
+/* LADO DIREITO */
+
+.right{
+flex:1;
+display:flex;
+justify-content:center;
+align-items:center;
+background:white;
+}
+
+.login-box{
+width:320px;
+}
+
+.login-box h2{
+margin-bottom:20px;
+color:#333;
+}
+
+input{
+width:100%;
+padding:12px;
+margin-bottom:12px;
+border:1px solid #ccc;
+border-radius:6px;
+font-size:15px;
+}
+
+input:focus{
+outline:none;
+border-color:#005aa7;
+}
+
+button{
+width:100%;
+padding:12px;
+border:none;
+background:#005aa7;
+color:white;
+font-size:16px;
+border-radius:6px;
+cursor:pointer;
+transition:0.2s;
+}
+
+button:hover{
+background:#004080;
+}
+
+.erro{
+color:red;
+margin-top:10px;
+font-size:14px;
+text-align:center;
+}
+
+/* RESPONSIVO */
+
+@media (max-width: 768px){
+
+.container{
+flex-direction:column;
+}
+
+.left{
+height:35%;
+}
+
+.right{
+height:65%;
+}
+
+}
+
+</style>
+
 </head>
 
 <body>
 
-<h2>Login</h2>
+<div class="container">
 
-<input type="email" id="email" placeholder="Email">
-<input type="password" id="senha" placeholder="Senha">
+<div class="left">
+
+<h1>Guarda-Vidas</h1>
+
+<p>
+Sistema de conferência de equipamentos
+dos postos de salvamento.
+</p>
+
+</div>
+
+
+<div class="right">
+
+<div class="login-box">
+
+<h2>Acesso ao Sistema</h2>
+
+<input id="email" placeholder="Email">
+
+<input id="senha" type="password" placeholder="Senha">
 
 <button onclick="login()">Entrar</button>
 
-<script src="js/login.js"></script>
+<div id="erro" class="erro"></div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<script>
+
+async function login(){
+
+const email = document.getElementById("email").value
+const senha = document.getElementById("senha").value
+
+const res = await fetch("/usuarios/login",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({email,senha})
+
+})
+
+const data = await res.json()
+
+if(data.usuario){
+
+localStorage.setItem("token",data.token)
+localStorage.setItem("usuario_id",data.usuario.id)
+localStorage.setItem("usuario_nome",data.usuario.nome)
+localStorage.setItem("usuario_tipo",data.usuario.tipo)
+
+if(data.usuario.tipo === "admin"){
+
+window.location="admin.html"
+
+}else{
+
+window.location="index.html"
+
+}
+
+}else{
+
+document.getElementById("erro").innerText =
+data.erro || "Login inválido"
+
+}
+
+}
+
+</script>
 
 </body>
 </html>

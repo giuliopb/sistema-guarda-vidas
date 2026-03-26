@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Selecionar Posto</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#f4f6f9;
+}
+
+/* HEADER */
+
+.header{
+background:white;
+padding:14px;
+display:flex;
+align-items:center;
+gap:10px;
+border-bottom:1px solid #ddd;
+}
+
+.voltar{
+cursor:pointer;
+font-size:18px;
+}
+
+.titulo{
+font-weight:bold;
+}
+
+/* LISTA */
+
+.container{
+padding:15px;
+}
+
+.card{
+background:white;
+border-radius:10px;
+padding:15px;
+margin-bottom:10px;
+display:flex;
+align-items:center;
+justify-content:space-between;
+box-shadow:0 2px 6px rgba(0,0,0,0.08);
+cursor:pointer;
+}
+
+.card:hover{
+background:#f1f1f1;
+}
+
+.info{
+display:flex;
+align-items:center;
+gap:12px;
+}
+
+.icone{
+width:40px;
+height:40px;
+background:#1976d2;
+color:white;
+display:flex;
+align-items:center;
+justify-content:center;
+border-radius:8px;
+font-size:18px;
+}
+
+.nome{
+font-weight:bold;
+}
+
+.sub{
+font-size:13px;
+color:#777;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<div class="voltar" onclick="voltar()">←</div>
+
+<div class="titulo">Escolha um Posto</div>
+
+</div>
+
+
+<div class="container" id="listaPostos">
+
+</div>
+
+
+<script>
+
+const usuario = localStorage.getItem("usuario_id")
+
+if(!usuario){
+
+window.location="login.html"
+
+}
+
+
+
+async function carregarPostos(){
+
+const res = await fetch("/postos")
+
+const postos = await res.json()
+
+const lista = document.getElementById("listaPostos")
+
+lista.innerHTML=""
+
+postos.forEach(p=>{
+
+const card = document.createElement("div")
+
+card.className="card"
+
+card.onclick = () => abrirPosto(p.id)
+
+card.innerHTML = `
+
+<div class="info">
+
+<div class="icone">🏖</div>
+
+<div>
+
+<div class="nome">${p.nome}</div>
+
+<div class="sub">
+Última conferência: 
+${p.ultima_conferencia ? p.ultima_conferencia : "Nunca"}
+</div>
+
+</div>
+
+</div>
+
+<div>⋮</div>
+
+`
+
+lista.appendChild(card)
+
+})
+
+}
+
+
+
+function abrirPosto(id){
+
+localStorage.setItem("posto_id",id)
+
+window.location="divisoes.html"
+
+}
+
+
+
+function voltar(){
+
+window.location="index.html"
+
+}
+
+
+
+carregarPostos()
+
+</script>
+
+</body>
+</html>
