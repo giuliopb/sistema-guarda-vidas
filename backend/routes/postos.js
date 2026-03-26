@@ -292,7 +292,6 @@ router.post('/divisoes/:id/itens', async (req, res) => {
     if (!nome || !nome.trim()) {
         return res.status(400).json({ erro: 'Nome do item é obrigatório' });
     }
-});
 
     try {
         const result = await pool.query(
