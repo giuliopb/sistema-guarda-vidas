@@ -1,181 +1,69 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Divisões</title>
-
 <style>
-
-body{
-margin:0;
-font-family:Arial;
-background:#f4f6f9;
-}
-
-.header{
-background:white;
-padding:14px;
-display:flex;
-gap:10px;
-border-bottom:1px solid #ddd;
-}
-
-.voltar{
-cursor:pointer;
-font-size:20px;
-}
-
-.container{
-padding:15px;
-}
-
-.card{
-background:white;
-border-radius:10px;
-padding:15px;
-margin-bottom:10px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-box-shadow:0 2px 6px rgba(0,0,0,0.08);
-cursor:pointer;
-}
-
-.conferido{
-background:#e8f5e9;
-border:1px solid #4caf50;
-}
-
-.status{
-font-size:14px;
-color:#777;
-}
-
-.bloqueado{
-opacity:0.6;
-cursor:not-allowed;
-}
-
-.aviso{
-background:#fff8e1;
-border:1px solid #ffd54f;
-padding:10px;
-border-radius:8px;
-margin-bottom:10px;
-font-size:14px;
-}
-
+body{margin:0;font-family:Arial;background:#f4f6f9}
+.header{background:#fff;padding:14px;display:flex;gap:10px;border-bottom:1px solid #ddd}
+.container{padding:15px}
+.card{background:#fff;border-radius:10px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,.08);cursor:pointer}
+.conferido{background:#e8f5e9;border:1px solid #4caf50;cursor:not-allowed}
+.alerta{background:#fff3cd;border:1px solid #ffe69c;padding:12px;border-radius:8px;margin-bottom:10px}
 </style>
-
 </head>
-
 <body>
-
 <div class="header">
-
-<div class="voltar" onclick="voltar()">←</div>
-
-<div>Divisões</div>
-
+  <div onclick="voltar()" style="cursor:pointer">←</div>
+  <div>Divisões</div>
 </div>
-
-<div class="container" id="lista"></div>
+<div class="container">
+  <div id="msg"></div>
+  <div id="lista"></div>
+</div>
 
 <script>
-
-const posto = localStorage.getItem("posto_id")
-let primeiraPendenteId = null
+const posto = localStorage.getItem('posto_id');
 
 async function carregarDivisoes(){
+  const res = await fetch('/divisoes/posto/'+posto+'/status');
+  const payload = await res.json();
+  const { cicloConcluido, divisoes } = payload;
 
-const res = await fetch("/divisoes/posto/"+posto+"/status")
-const divisoes = await res.json()
+  const lista = document.getElementById('lista');
+  const msg = document.getElementById('msg');
+  lista.innerHTML = '';
 
-const lista = document.getElementById("lista")
+  if(cicloConcluido){
+    msg.innerHTML = '<div class="alerta"><b>Conferência de posto realizada.</b> Todas as divisões foram liberadas para uma nova conferência.</div>';
+  }else{
+    msg.innerHTML = '';
+  }
 
-lista.innerHTML=""
-primeiraPendenteId = null
+  divisoes.forEach((d) => {
+    const card = document.createElement('div');
+    card.className = 'card';
 
-const primeiraPendente = divisoes.find(d => !d.data_hora)
-if(primeiraPendente){
-primeiraPendenteId = primeiraPendente.id
+    const bloqueada = Boolean(d.data_hora);
+    if(bloqueada){ card.classList.add('conferido'); }
 
-const aviso = document.createElement("div")
-aviso.className = "aviso"
-aviso.innerText =
-"As divisões devem ser conferidas em ordem. Conclua a próxima pendente para continuar."
-lista.appendChild(aviso)
+    card.innerHTML = `<div><b>${d.nome}</b><br><small>${bloqueada ? 'Conferida neste ciclo' : 'Pendente'}</small></div><div>›</div>`;
+    card.onclick = () => abrirDivisao(d.id, bloqueada);
+
+    lista.appendChild(card);
+  });
 }
 
-divisoes.forEach(d=>{
-
-const card = document.createElement("div")
-
-card.className="card"
-
-if(d.data_hora){
-card.classList.add("conferido")
+function abrirDivisao(id, bloqueada){
+  if(bloqueada){ return; }
+  localStorage.setItem('divisao_id', id);
+  window.location = 'checklist.html';
 }
 
-const bloqueado = !d.data_hora && primeiraPendenteId !== null && d.id !== primeiraPendenteId
-if(bloqueado){
-card.classList.add("bloqueado")
-}
+function voltar(){ window.location='conferencia.html'; }
 
-card.innerHTML=`
-
-<div>
-
-<b>${d.nome}</b><br>
-
-<span class="status">
-
-${d.data_hora ? "Conferido" : "Pendente"}
-
-</span>
-
-</div>
-
-<div>${bloqueado ? "🔒" : "›"}</div>
-
-`
-
-card.onclick = () => abrirDivisao(d, bloqueado)
-
-lista.appendChild(card)
-
-})
-
-}
-
-function abrirDivisao(d, bloqueado){
-
-if(d.data_hora){
-return
-}
-
-if(bloqueado){
-alert("Finalize primeiro a próxima divisão pendente.")
-return
-}
-
-localStorage.setItem("divisao_id",d.id)
-
-window.location="checklist.html"
-
-}
-
-function voltar(){
-window.location="conferencia.html"
-}
-
-carregarDivisoes()
-
+carregarDivisoes();
 </script>
-
 </body>
 </html>
