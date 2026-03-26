@@ -2,41 +2,95 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-
-// ======================================
-// DASHBOARD ADMINISTRADOR
-// ======================================
-
 router.get('/postos', async (req, res) => {
-
     try {
+        const result = await pool.query(`
+            SELECT
+                p.id,
+                p.nome,
+                MAX(cd.data_hora) AS ultima_conferencia,
+                (
+                    SELECT u.nome
+                    FROM conferencia_divisoes cd2
+                    JOIN usuarios u ON u.id = cd2.usuario_id
+                    JOIN divisoes d2 ON d2.id = cd2.divisao_id
+                    WHERE d2.posto_id = p.id
+                    ORDER BY cd2.data_hora DESC
+                    LIMIT 1
+                ) AS ultimo_usuario
+            FROM postos p
+            LEFT JOIN divisoes d ON d.posto_id = p.id
+            LEFT JOIN conferencia_divisoes cd ON cd.divisao_id = d.id
+            GROUP BY p.id, p.nome
+            ORDER BY p.nome
+        `);
 
-        const result = await pool.query(
-
-        `SELECT 
-            p.id,
-            p.nome,
-            p.ultima_conferencia,
-            u.nome as ultimo_usuario
-        FROM postos p
-        LEFT JOIN usuarios u
-        ON p.ultimo_usuario = u.id
-        ORDER BY p.nome`
-
-        )
-
-        res.json(result.rows)
-
+        res.json(result.rows);
     } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao carregar conferências dos postos' });
+    }
+});
 
-        console.error(error)
+router.get('/alteracoes', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                a.id,
+                a.descricao,
+                a.quantidade_encontrada,
+                a.status,
+                a.resolucao,
+                a.criada_em,
+                i.nome AS item_nome,
+                i.quantidade_padrao,
+                d.nome AS divisao_nome,
+                p.nome AS posto_nome
+            FROM alteracoes a
+            JOIN itens i ON i.id = a.item_id
+            JOIN divisoes d ON d.id = i.divisao_id
+            JOIN postos p ON p.id = d.posto_id
+            ORDER BY
+                CASE a.status
+                    WHEN 'pendente' THEN 0
+                    WHEN 'em_correcao' THEN 1
+                    ELSE 2
+                END,
+                a.criada_em DESC
+        `);
 
-        res.status(500).json({
-            erro: "Erro ao carregar dashboard"
-        })
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao listar alterações' });
+    }
+});
 
+router.put('/alteracoes/:id', async (req, res) => {
+    const { id } = req.params;
+    const { status, resolucao } = req.body;
+
+    const statusValidos = ['pendente', 'em_correcao', 'resolvido'];
+
+    if (!statusValidos.includes(status)) {
+        return res.status(400).json({ erro: 'Status inválido' });
     }
 
-})
+    try {
+        const result = await pool.query(
+            'UPDATE alteracoes SET status = $1, resolucao = $2 WHERE id = $3 RETURNING *',
+            [status, resolucao || null, id]
+        );
 
-module.exports = router
+        if (!result.rows.length) {
+            return res.status(404).json({ erro: 'Alteração não encontrada' });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao atualizar alteração' });
+    }
+});
+
+module.exports = router;
