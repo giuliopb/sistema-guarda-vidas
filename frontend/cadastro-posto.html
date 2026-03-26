@@ -21,7 +21,7 @@ button{cursor:pointer;border:none}
 </head>
 <body>
 <div class="wrap">
-  <h1>Novo posto</h1>
+  <h1 id="tituloPagina">Novo posto</h1>
 
   <div class="card">
     <label>Nome do posto</label><br>
@@ -38,13 +38,16 @@ button{cursor:pointer;border:none}
   </div>
 
   <div class="row">
-    <button class="success" onclick="salvarPostoCompleto()">Salvar posto completo</button>
+    <button class="success" onclick="salvarPostoCompleto()" id="btnSalvar">Salvar posto completo</button>
     <button onclick="window.location='admin.html'">Voltar</button>
   </div>
 </div>
 
 <script>
 if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
+
+const query = new URLSearchParams(window.location.search);
+const postoId = query.get('id');
 
 let contadorDivisao = 0;
 const estado = [];
@@ -142,6 +145,44 @@ function validarPayload(payload){
   return null;
 }
 
+async function carregarPostoParaEdicao(){
+  if(!postoId) return;
+
+  const res = await fetch(`/postos/${postoId}/completo`);
+  const data = await res.json();
+
+  if(!res.ok){
+    alert(data.erro || 'Erro ao carregar posto para edição');
+    window.location='admin.html';
+    return;
+  }
+
+  document.getElementById('tituloPagina').innerText = 'Editar posto';
+  document.getElementById('btnSalvar').innerText = 'Salvar alterações do posto';
+  document.getElementById('nomePosto').value = data.nome || '';
+
+  estado.splice(0, estado.length);
+  let maiorId = 0;
+
+  (data.divisoes || []).forEach((d) => {
+    const novoId = d.id || (++maiorId);
+    maiorId = Math.max(maiorId, novoId);
+
+    estado.push({
+      id: novoId,
+      nome: d.nome,
+      itens: (d.itens || []).map((i) => ({
+        nome: i.nome,
+        quantidade_padrao: Number(i.quantidade_padrao || 0)
+      }))
+    });
+  });
+
+  contadorDivisao = maiorId;
+  if(estado.length === 0){ adicionarDivisao(); return; }
+  renderDivisoes();
+}
+
 async function salvarPostoCompleto(){
   const payload = {
     nome: document.getElementById('nomePosto').value,
@@ -157,8 +198,11 @@ async function salvarPostoCompleto(){
     return;
   }
 
-  const res = await fetch('/postos/completo', {
-    method:'POST',
+  const url = postoId ? `/postos/${postoId}/completo` : '/postos/completo';
+  const method = postoId ? 'PUT' : 'POST';
+
+  const res = await fetch(url, {
+    method,
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
@@ -169,11 +213,15 @@ async function salvarPostoCompleto(){
     return;
   }
 
-  alert('Posto cadastrado com sucesso!');
+  alert(postoId ? 'Posto atualizado com sucesso!' : 'Posto cadastrado com sucesso!');
   window.location='admin.html';
 }
 
-adicionarDivisao();
+if(!postoId){
+  adicionarDivisao();
+} else {
+  carregarPostoParaEdicao();
+}
 </script>
 </body>
 </html>

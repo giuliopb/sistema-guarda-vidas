@@ -66,7 +66,7 @@ async function carregarPostosCrud(){
     div.className = 'list-item';
     div.innerHTML = `<div><b>${p.nome}</b> <small>(ID ${p.id})</small></div>
       <div>
-        <button onclick="editarPosto(${p.id}, '${p.nome.replace(/'/g, "\\'")}')">Editar</button>
+        <button onclick="editarPosto(${p.id})">Editar</button>
         <button class="btn-danger" onclick="excluirPosto(${p.id})">Excluir</button>
       </div>`;
     container.appendChild(div);
@@ -147,12 +147,8 @@ async function atualizarProblema(id){
   carregarAlteracoes();
 }
 
-async function editarPosto(id, nomeAtual){
-  const nome = prompt('Novo nome do posto:', nomeAtual);
-  if(!nome) return;
-  await fetch(`/postos/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({nome})});
-  carregarPostosCrud();
-  carregarConferencias();
+function editarPosto(id){
+  window.location = `cadastro-posto.html?id=${id}`;
 }
 
 async function excluirPosto(id){
