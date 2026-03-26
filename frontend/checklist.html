@@ -43,6 +43,7 @@ display:flex;
 align-items:center;
 justify-content:space-between;
 box-shadow:0 2px 6px rgba(0,0,0,0.08);
+gap:10px;
 }
 
 .nome{
@@ -101,6 +102,40 @@ input:checked + .slider:before{
 transform:translateX(20px);
 }
 
+.lado-esquerdo{
+display:flex;
+align-items:center;
+gap:10px;
+}
+
+.acoes-item{
+display:flex;
+flex-direction:column;
+gap:6px;
+}
+
+.btn-alerta{
+border:none;
+background:#fff3e0;
+color:#ef6c00;
+padding:8px;
+border-radius:8px;
+cursor:pointer;
+font-size:16px;
+}
+
+.qtd{
+width:72px;
+padding:8px;
+border:1px solid #ccc;
+border-radius:6px;
+}
+
+.sub.alerta{
+color:#d32f2f;
+font-weight:bold;
+}
+
 </style>
 
 </head>
@@ -125,19 +160,29 @@ const divisao = localStorage.getItem("divisao_id")
 
 let totalItens = 0
 let itensMarcados = 0
+let itensDaDivisao = []
+let quantidadePorItem = {}
+let descricaoPorItem = {}
+let checkboxPorItem = {}
 
 async function carregarItens(){
 
 const res = await fetch("/divisoes/"+divisao+"/itens")
 const itens = await res.json()
+itensDaDivisao = itens
+quantidadePorItem = {}
+descricaoPorItem = {}
+checkboxPorItem = {}
+totalItens = itens.length
+itensMarcados = 0
 
 const lista = document.getElementById("lista")
 
 lista.innerHTML=""
 
 itens.forEach(i=>{
-
-totalItens++
+quantidadePorItem[i.id] = i.quantidade_padrao
+descricaoPorItem[i.id] = ""
 
 const item = document.createElement("div")
 
@@ -145,16 +190,33 @@ item.className="item"
 
 item.innerHTML=`
 
+<div class="lado-esquerdo">
+
+<div class="acoes-item">
+<button class="btn-alerta" onclick="registrarDefeito(${i.id})" title="Registrar defeito">⚠️</button>
+<input
+class="qtd"
+type="number"
+min="0"
+value="${i.quantidade_padrao}"
+onchange="atualizarQuantidade(${i.id}, this.value)"
+>
+</div>
+
 <div>
 
 <div class="nome">${i.nome}</div>
-<div class="sub">Quantidade esperada: ${i.quantidade_padrao}</div>
+<div class="sub" id="status-item-${i.id}">
+Quantidade esperada: ${i.quantidade_padrao}
+</div>
+
+</div>
 
 </div>
 
 <label class="switch">
 
-<input type="checkbox" onchange="toggleItem(this)">
+<input type="checkbox" onchange="toggleItem(${i.id}, this)">
 
 <span class="slider"></span>
 
@@ -162,13 +224,61 @@ item.innerHTML=`
 
 `
 
+checkboxPorItem[i.id] = item.querySelector("input[type='checkbox']")
 lista.appendChild(item)
+atualizarTextoStatus(i.id)
 
 })
 
 }
 
-function toggleItem(el){
+function atualizarQuantidade(itemId, valor){
+
+const quantidade = Number(valor)
+
+if(Number.isNaN(quantidade) || quantidade < 0){
+alert("Quantidade inválida.")
+return
+}
+
+quantidadePorItem[itemId] = quantidade
+atualizarTextoStatus(itemId)
+}
+
+function registrarDefeito(itemId){
+const atual = descricaoPorItem[itemId] || ""
+const descricao = prompt("Descreva o defeito ou observação deste item:", atual)
+
+if(descricao === null){
+return
+}
+
+descricaoPorItem[itemId] = descricao.trim()
+atualizarTextoStatus(itemId)
+}
+
+function atualizarTextoStatus(itemId){
+const item = itensDaDivisao.find(i => i.id === itemId)
+const status = document.getElementById("status-item-"+itemId)
+
+if(!item || !status){
+return
+}
+
+const qtdPadrao = Number(item.quantidade_padrao)
+const qtdAtual = Number(quantidadePorItem[itemId])
+const temFalta = qtdAtual < qtdPadrao
+const temDefeito = !!descricaoPorItem[itemId]
+
+status.classList.toggle("alerta", temFalta || temDefeito)
+
+status.innerText =
+`Esperado: ${qtdPadrao} | Encontrado: ${qtdAtual}` +
+(temFalta ? " (EM FALTA)" : "") +
+(temDefeito ? " | Defeito registrado" : "")
+}
+
+function toggleItem(itemId, el){
 
 if(el.checked){
 itensMarcados++
@@ -186,7 +296,20 @@ registrar()
 
 async function registrar(){
 
-await fetch("/divisoes/conferir",{
+const itensPendentes = Object.keys(checkboxPorItem).some(id => !checkboxPorItem[id].checked)
+if(itensPendentes){
+alert("Marque todos os itens como conferidos antes de finalizar a divisão.")
+return
+}
+
+const payloadItens = itensDaDivisao.map(item => ({
+item_id: item.id,
+quantidade_padrao: Number(item.quantidade_padrao),
+quantidade_encontrada: Number(quantidadePorItem[item.id]),
+descricao: descricaoPorItem[item.id] || ""
+}))
+
+const resposta = await fetch("/divisoes/conferir",{
 
 method:"POST",
 
@@ -198,11 +321,25 @@ body:JSON.stringify({
 
 posto_id:posto,
 divisao_id:divisao,
-usuario_id:usuario
+usuario_id:usuario,
+itens: payloadItens
 
 })
 
 })
+
+const resultado = await resposta.json()
+
+if(!resposta.ok){
+alert(resultado.erro || "Não foi possível finalizar a divisão.")
+return
+}
+
+if(resultado.conferencia_completa){
+alert("Conferência do posto concluída com sucesso.")
+window.location="conferencia.html"
+return
+}
 
 alert("Divisão conferida")
 

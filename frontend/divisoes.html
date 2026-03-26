@@ -55,6 +55,20 @@ font-size:14px;
 color:#777;
 }
 
+.bloqueado{
+opacity:0.6;
+cursor:not-allowed;
+}
+
+.aviso{
+background:#fff8e1;
+border:1px solid #ffd54f;
+padding:10px;
+border-radius:8px;
+margin-bottom:10px;
+font-size:14px;
+}
+
 </style>
 
 </head>
@@ -74,6 +88,7 @@ color:#777;
 <script>
 
 const posto = localStorage.getItem("posto_id")
+let primeiraPendenteId = null
 
 async function carregarDivisoes(){
 
@@ -83,6 +98,18 @@ const divisoes = await res.json()
 const lista = document.getElementById("lista")
 
 lista.innerHTML=""
+primeiraPendenteId = null
+
+const primeiraPendente = divisoes.find(d => !d.data_hora)
+if(primeiraPendente){
+primeiraPendenteId = primeiraPendente.id
+
+const aviso = document.createElement("div")
+aviso.className = "aviso"
+aviso.innerText =
+"As divisões devem ser conferidas em ordem. Conclua a próxima pendente para continuar."
+lista.appendChild(aviso)
+}
 
 divisoes.forEach(d=>{
 
@@ -92,6 +119,11 @@ card.className="card"
 
 if(d.data_hora){
 card.classList.add("conferido")
+}
+
+const bloqueado = !d.data_hora && primeiraPendenteId !== null && d.id !== primeiraPendenteId
+if(bloqueado){
+card.classList.add("bloqueado")
 }
 
 card.innerHTML=`
@@ -108,11 +140,11 @@ ${d.data_hora ? "Conferido" : "Pendente"}
 
 </div>
 
-<div>›</div>
+<div>${bloqueado ? "🔒" : "›"}</div>
 
 `
 
-card.onclick = () => abrirDivisao(d)
+card.onclick = () => abrirDivisao(d, bloqueado)
 
 lista.appendChild(card)
 
@@ -120,9 +152,14 @@ lista.appendChild(card)
 
 }
 
-function abrirDivisao(d){
+function abrirDivisao(d, bloqueado){
 
 if(d.data_hora){
+return
+}
+
+if(bloqueado){
+alert("Finalize primeiro a próxima divisão pendente.")
 return
 }
 
