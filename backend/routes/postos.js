@@ -2,6 +2,33 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
+function validarPostoCompleto(nome, divisoes) {
+    if (!nome || !nome.trim()) {
+        return 'Nome do posto é obrigatório';
+    }
+
+    if (!Array.isArray(divisoes) || divisoes.length === 0) {
+        return 'O posto deve ter ao menos 1 divisão';
+    }
+
+    for (const divisao of divisoes) {
+        if (!divisao.nome || !divisao.nome.trim()) {
+            return 'Todas as divisões precisam de nome';
+        }
+
+        if (!Array.isArray(divisao.itens) || divisao.itens.length === 0) {
+            return `A divisão "${divisao.nome}" deve ter ao menos 1 item`;
+        }
+    }
+
+    const nomesUnicos = new Set(divisoes.map((d) => d.nome.trim().toLowerCase()));
+    if (nomesUnicos.size !== divisoes.length) {
+        return 'As divisões de um posto devem ter nomes únicos';
+    }
+
+    return null;
+}
+
 router.get('/', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM postos ORDER BY nome');
@@ -34,28 +61,10 @@ router.post('/', async (req, res) => {
 
 router.post('/completo', async (req, res) => {
     const { nome, divisoes } = req.body;
+    const erroValidacao = validarPostoCompleto(nome, divisoes);
 
-    if (!nome || !nome.trim()) {
-        return res.status(400).json({ erro: 'Nome do posto é obrigatório' });
-    }
-
-    if (!Array.isArray(divisoes) || divisoes.length === 0) {
-        return res.status(400).json({ erro: 'O posto deve ter ao menos 1 divisão' });
-    }
-
-    for (const divisao of divisoes) {
-        if (!divisao.nome || !divisao.nome.trim()) {
-            return res.status(400).json({ erro: 'Todas as divisões precisam de nome' });
-        }
-
-        if (!Array.isArray(divisao.itens) || divisao.itens.length === 0) {
-            return res.status(400).json({ erro: `A divisão "${divisao.nome}" deve ter ao menos 1 item` });
-        }
-    }
-
-    const nomesUnicos = new Set(divisoes.map((d) => d.nome.trim().toLowerCase()));
-    if (nomesUnicos.size !== divisoes.length) {
-        return res.status(400).json({ erro: 'As divisões de um posto devem ter nomes únicos' });
+    if (erroValidacao) {
+        return res.status(400).json({ erro: erroValidacao });
     }
 
     const client = await pool.connect();
@@ -86,11 +95,7 @@ router.post('/completo', async (req, res) => {
 
                 await client.query(
                     'INSERT INTO itens (nome, divisao_id, quantidade_padrao) VALUES ($1, $2, $3)',
-                    [
-                        nomeItem,
-                        divisaoCriada.id,
-                        Number(item.quantidade_padrao || 0)
-                    ]
+                    [nomeItem, divisaoCriada.id, Number(item.quantidade_padrao || 0)]
                 );
             }
         }
@@ -105,6 +110,105 @@ router.post('/completo', async (req, res) => {
         await client.query('ROLLBACK');
         console.error(error);
         res.status(500).json({ erro: 'Erro ao criar posto completo' });
+    } finally {
+        client.release();
+    }
+});
+
+router.get('/:id/completo', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const postoResult = await pool.query('SELECT id, nome FROM postos WHERE id = $1', [id]);
+
+        if (!postoResult.rows.length) {
+            return res.status(404).json({ erro: 'Posto não encontrado' });
+        }
+
+        const divisoesResult = await pool.query(
+            'SELECT id, nome FROM divisoes WHERE posto_id = $1 ORDER BY id',
+            [id]
+        );
+
+        const divisoes = [];
+
+        for (const divisao of divisoesResult.rows) {
+            const itensResult = await pool.query(
+                'SELECT id, nome, quantidade_padrao FROM itens WHERE divisao_id = $1 ORDER BY id',
+                [divisao.id]
+            );
+
+            divisoes.push({
+                id: divisao.id,
+                nome: divisao.nome,
+                itens: itensResult.rows
+            });
+        }
+
+        res.json({
+            id: postoResult.rows[0].id,
+            nome: postoResult.rows[0].nome,
+            divisoes
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao buscar posto completo' });
+    }
+});
+
+router.put('/:id/completo', async (req, res) => {
+    const { id } = req.params;
+    const { nome, divisoes } = req.body;
+    const erroValidacao = validarPostoCompleto(nome, divisoes);
+
+    if (erroValidacao) {
+        return res.status(400).json({ erro: erroValidacao });
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const postoAtual = await client.query('SELECT id FROM postos WHERE id = $1', [id]);
+        if (!postoAtual.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ erro: 'Posto não encontrado' });
+        }
+
+        await client.query('UPDATE postos SET nome = $1 WHERE id = $2', [nome.trim(), id]);
+
+        await client.query(
+            'DELETE FROM itens WHERE divisao_id IN (SELECT id FROM divisoes WHERE posto_id = $1)',
+            [id]
+        );
+        await client.query('DELETE FROM divisoes WHERE posto_id = $1', [id]);
+
+        for (const divisao of divisoes) {
+            const divisaoResult = await client.query(
+                'INSERT INTO divisoes (nome, posto_id) VALUES ($1, $2) RETURNING id, nome',
+                [divisao.nome.trim(), id]
+            );
+
+            for (const item of divisao.itens) {
+                const nomeItem = (item.nome || '').trim();
+                if (!nomeItem) {
+                    throw new Error(`Item sem nome na divisão ${divisaoResult.rows[0].nome}`);
+                }
+
+                await client.query(
+                    'INSERT INTO itens (nome, divisao_id, quantidade_padrao) VALUES ($1, $2, $3)',
+                    [nomeItem, divisaoResult.rows[0].id, Number(item.quantidade_padrao || 0)]
+                );
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ ok: true, mensagem: 'Posto atualizado com sucesso' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao atualizar posto completo' });
     } finally {
         client.release();
     }
