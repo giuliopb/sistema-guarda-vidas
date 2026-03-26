@@ -29,6 +29,47 @@ function validarPostoCompleto(nome, divisoes) {
     return null;
 }
 
+async function limparDependenciasPosto(client, postoId) {
+    await client.query(
+        `DELETE FROM alteracoes
+         WHERE item_id IN (
+             SELECT i.id
+             FROM itens i
+             JOIN divisoes d ON d.id = i.divisao_id
+             WHERE d.posto_id = $1
+         )`,
+        [postoId]
+    );
+
+    await client.query(
+        `DELETE FROM alteracoes
+         WHERE conferencia_id IN (
+             SELECT id FROM conferencias WHERE posto_id = $1
+         )`,
+        [postoId]
+    );
+
+    await client.query(
+        `DELETE FROM conferencia_divisoes
+         WHERE divisao_id IN (
+             SELECT id FROM divisoes WHERE posto_id = $1
+         )`,
+        [postoId]
+    );
+
+    await client.query('DELETE FROM conferencias WHERE posto_id = $1', [postoId]);
+
+    await client.query(
+        `DELETE FROM itens
+         WHERE divisao_id IN (
+             SELECT id FROM divisoes WHERE posto_id = $1
+         )`,
+        [postoId]
+    );
+
+    await client.query('DELETE FROM divisoes WHERE posto_id = $1', [postoId]);
+}
+
 router.get('/', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM postos ORDER BY nome');
@@ -178,11 +219,7 @@ router.put('/:id/completo', async (req, res) => {
 
         await client.query('UPDATE postos SET nome = $1 WHERE id = $2', [nome.trim(), id]);
 
-        await client.query(
-            'DELETE FROM itens WHERE divisao_id IN (SELECT id FROM divisoes WHERE posto_id = $1)',
-            [id]
-        );
-        await client.query('DELETE FROM divisoes WHERE posto_id = $1', [id]);
+        await limparDependenciasPosto(client, id);
 
         for (const divisao of divisoes) {
             const divisaoResult = await client.query(
@@ -252,12 +289,7 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ erro: 'Posto não encontrado' });
         }
 
-        await client.query(
-            `DELETE FROM itens
-             WHERE divisao_id IN (SELECT id FROM divisoes WHERE posto_id = $1)`,
-            [id]
-        );
-        await client.query('DELETE FROM divisoes WHERE posto_id = $1', [id]);
+        await limparDependenciasPosto(client, id);
         await client.query('DELETE FROM postos WHERE id = $1', [id]);
 
         await client.query('COMMIT');
