@@ -1,158 +1,210 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const pool = require("../db");
+const pool = require('../db');
 
+async function getOrCreateConferenciaEmAndamento(postoId, usuarioId) {
+    const ultimaConferencia = await pool.query(
+        'SELECT id FROM conferencias WHERE posto_id = $1 ORDER BY id DESC LIMIT 1',
+        [postoId]
+    );
 
-// ===============================
-// STATUS DAS DIVISÕES DO POSTO
-// ===============================
+    const totalDivisoesResult = await pool.query(
+        'SELECT COUNT(*)::int AS total FROM divisoes WHERE posto_id = $1',
+        [postoId]
+    );
 
-router.get("/posto/:postoId/status", async (req,res)=>{
+    const totalDivisoes = totalDivisoesResult.rows[0].total;
 
-const postoId = req.params.postoId;
+    if (!ultimaConferencia.rows.length) {
+        const nova = await pool.query(
+            'INSERT INTO conferencias (posto_id, usuario_id) VALUES ($1, $2) RETURNING id',
+            [postoId, usuarioId]
+        );
+        return { conferenciaId: nova.rows[0].id, totalDivisoes, cicloNovo: true };
+    }
 
-try{
+    const conferenciaId = ultimaConferencia.rows[0].id;
 
-// pegar última conferência
-const conferencia = await pool.query(`
-SELECT id
-FROM conferencias
-WHERE posto_id=$1
-ORDER BY id DESC
-LIMIT 1
-`,[postoId]);
+    const divisoesConferidasResult = await pool.query(
+        'SELECT COUNT(DISTINCT divisao_id)::int AS total FROM conferencia_divisoes WHERE conferencia_id = $1',
+        [conferenciaId]
+    );
 
-let conferenciaId = null;
+    const divisoesConferidas = divisoesConferidasResult.rows[0].total;
 
-if(conferencia.rows.length > 0){
-conferenciaId = conferencia.rows[0].id;
+    if (totalDivisoes > 0 && divisoesConferidas >= totalDivisoes) {
+        const nova = await pool.query(
+            'INSERT INTO conferencias (posto_id, usuario_id) VALUES ($1, $2) RETURNING id',
+            [postoId, usuarioId]
+        );
+        return { conferenciaId: nova.rows[0].id, totalDivisoes, cicloNovo: true };
+    }
+
+    return { conferenciaId, totalDivisoes, cicloNovo: false };
 }
 
-// retornar divisões com status
-const result = await pool.query(`
-SELECT
-d.id,
-d.nome,
-cd.data_hora
-FROM divisoes d
+router.get('/posto/:postoId/status', async (req, res) => {
+    const postoId = req.params.postoId;
 
-LEFT JOIN conferencia_divisoes cd
-ON cd.divisao_id = d.id
-AND cd.conferencia_id = $2
+    try {
+        const totalDivisoesResult = await pool.query(
+            'SELECT COUNT(*)::int AS total FROM divisoes WHERE posto_id = $1',
+            [postoId]
+        );
+        const totalDivisoes = totalDivisoesResult.rows[0].total;
 
-WHERE d.posto_id = $1
-ORDER BY d.id
-`,[postoId, conferenciaId]);
+        const conferencia = await pool.query(
+            'SELECT id FROM conferencias WHERE posto_id = $1 ORDER BY id DESC LIMIT 1',
+            [postoId]
+        );
 
-res.json(result.rows);
+        let conferenciaId = null;
+        let cicloConcluido = false;
 
-}catch(err){
+        if (conferencia.rows.length) {
+            conferenciaId = conferencia.rows[0].id;
 
-console.error(err);
+            const conferidas = await pool.query(
+                'SELECT COUNT(DISTINCT divisao_id)::int AS total FROM conferencia_divisoes WHERE conferencia_id = $1',
+                [conferenciaId]
+            );
 
-res.status(500).json({
-erro:"Erro ao buscar divisões"
+            if (totalDivisoes > 0 && conferidas.rows[0].total >= totalDivisoes) {
+                cicloConcluido = true;
+                conferenciaId = null;
+            }
+        }
+
+        const result = await pool.query(
+            `
+            SELECT
+                d.id,
+                d.nome,
+                CASE
+                    WHEN $2::int IS NULL THEN NULL
+                    ELSE cd.data_hora
+                END AS data_hora
+            FROM divisoes d
+            LEFT JOIN conferencia_divisoes cd
+                ON cd.divisao_id = d.id
+               AND cd.conferencia_id = $2
+            WHERE d.posto_id = $1
+            ORDER BY d.id
+            `,
+            [postoId, conferenciaId]
+        );
+
+        res.json({
+            cicloConcluido,
+            divisoes: result.rows
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: 'Erro ao buscar divisões' });
+    }
 });
 
-}
+router.get('/:id/itens', async (req, res) => {
+    const divisaoId = req.params.id;
 
+    try {
+        const result = await pool.query(
+            'SELECT * FROM itens WHERE divisao_id = $1 ORDER BY id',
+            [divisaoId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(400).json({
+                erro: 'Essa divisão não possui itens cadastrados'
+            });
+        }
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: 'Erro ao buscar itens' });
+    }
 });
 
+router.post('/conferir', async (req, res) => {
+    const { posto_id, divisao_id, usuario_id, alteracoes = [] } = req.body;
 
-// ===============================
-// LISTAR ITENS DA DIVISÃO
-// ===============================
+    if (!posto_id || !divisao_id || !usuario_id) {
+        return res.status(400).json({ erro: 'posto_id, divisao_id e usuario_id são obrigatórios' });
+    }
 
-router.get("/:id/itens", async (req,res)=>{
+    try {
+        const { conferenciaId, totalDivisoes } = await getOrCreateConferenciaEmAndamento(posto_id, usuario_id);
 
-const divisaoId = req.params.id;
+        const jaConferida = await pool.query(
+            'SELECT id FROM conferencia_divisoes WHERE conferencia_id = $1 AND divisao_id = $2 LIMIT 1',
+            [conferenciaId, divisao_id]
+        );
 
-try{
+        if (jaConferida.rows.length) {
+            return res.status(400).json({ erro: 'Divisão já conferida neste ciclo' });
+        }
 
-const result = await pool.query(
-"SELECT * FROM itens WHERE divisao_id=$1 ORDER BY id",
-[divisaoId]
-);
+        await pool.query(
+            `
+            INSERT INTO conferencia_divisoes (conferencia_id, divisao_id, usuario_id, data_hora)
+            VALUES ($1, $2, $3, NOW())
+            `,
+            [conferenciaId, divisao_id, usuario_id]
+        );
 
-if(result.rows.length === 0){
+        for (const alt of alteracoes) {
+            const itemResult = await pool.query(
+                'SELECT quantidade_padrao FROM itens WHERE id = $1 LIMIT 1',
+                [alt.item_id]
+            );
 
-return res.status(400).json({
-erro:"Essa divisão não possui itens cadastrados"
-});
+            if (!itemResult.rows.length) {
+                continue;
+            }
 
-}
+            const quantidadePadrao = Number(itemResult.rows[0].quantidade_padrao || 0);
+            const quantidadeEncontrada = Number(alt.quantidade_encontrada ?? quantidadePadrao);
+            const descricao = (alt.descricao || '').trim();
+            const abaixoPadrao = quantidadeEncontrada < quantidadePadrao;
 
-res.json(result.rows);
+            if (!abaixoPadrao && !descricao) {
+                continue;
+            }
 
-}catch(err){
+            await pool.query(
+                `
+                INSERT INTO alteracoes (
+                    item_id,
+                    conferencia_id,
+                    quantidade_encontrada,
+                    descricao,
+                    status,
+                    criada_em
+                )
+                VALUES ($1, $2, $3, $4, 'pendente', NOW())
+                `,
+                [alt.item_id, conferenciaId, quantidadeEncontrada, descricao || 'Quantidade abaixo do padrão']
+            );
+        }
 
-console.error(err);
+        const conferidasResult = await pool.query(
+            'SELECT COUNT(DISTINCT divisao_id)::int AS total FROM conferencia_divisoes WHERE conferencia_id = $1',
+            [conferenciaId]
+        );
 
-res.status(500).json({
-erro:"Erro ao buscar itens"
-});
+        const totalConferidas = conferidasResult.rows[0].total;
+        const postoConcluido = totalDivisoes > 0 && totalConferidas >= totalDivisoes;
 
-}
-
-});
-
-
-// ===============================
-// REGISTRAR DIVISÃO CONFERIDA
-// ===============================
-
-router.post("/conferir", async (req,res)=>{
-
-const {posto_id, divisao_id, usuario_id} = req.body;
-
-try{
-
-// pegar última conferência
-let conferencia = await pool.query(`
-SELECT id
-FROM conferencias
-WHERE posto_id=$1
-ORDER BY id DESC
-LIMIT 1
-`,[posto_id]);
-
-let conferenciaId;
-
-if(conferencia.rows.length === 0){
-
-const nova = await pool.query(`
-INSERT INTO conferencias (posto_id,usuario_id)
-VALUES ($1,$2)
-RETURNING id
-`,[posto_id,usuario_id]);
-
-conferenciaId = nova.rows[0].id;
-
-}else{
-
-conferenciaId = conferencia.rows[0].id;
-
-}
-
-// registrar divisão
-await pool.query(`
-INSERT INTO conferencia_divisoes
-(conferencia_id,divisao_id,usuario_id,data_hora)
-VALUES ($1,$2,$3,NOW())
-`,[conferenciaId,divisao_id,usuario_id]);
-
-res.json({ok:true});
-
-}catch(err){
-
-console.error(err);
-
-res.status(500).json({
-erro:"Erro ao registrar conferência"
-});
-
-}
-
+        res.json({
+            ok: true,
+            postoConcluido,
+            mensagem: postoConcluido ? 'Conferência de posto realizada' : 'Divisão conferida'
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ erro: 'Erro ao registrar conferência' });
+    }
 });
 
 module.exports = router;

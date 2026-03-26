@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastrar Posto</title>
+<style>
+body{font-family:Arial;margin:0;background:#f2f5f8}
+.wrap{max-width:1000px;margin:0 auto;padding:20px}
+.card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:14px}
+input,button{padding:10px;border-radius:8px;border:1px solid #ccc}
+button{cursor:pointer;border:none}
+.primary{background:#1976d2;color:#fff}
+.success{background:#2e7d32;color:#fff}
+.danger{background:#c62828;color:#fff}
+.divisao{border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-top:10px}
+.item-row{display:flex;gap:8px;margin-top:6px}
+.item-row input{flex:1}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Novo posto</h1>
+
+  <div class="card">
+    <label>Nome do posto</label><br>
+    <input id="nomePosto" type="text" placeholder="Ex.: Posto Central" style="width:100%;margin-top:8px">
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <h3 style="margin:0">Divisões do posto</h3>
+      <button class="primary" onclick="adicionarDivisao()">+ Adicionar divisão</button>
+    </div>
+    <p>Regra: 1 posto precisa de 1 ou mais divisões e cada divisão deve conter 1 ou mais itens.</p>
+    <div id="listaDivisoes"></div>
+  </div>
+
+  <div class="row">
+    <button class="success" onclick="salvarPostoCompleto()">Salvar posto completo</button>
+    <button onclick="window.location='admin.html'">Voltar</button>
+  </div>
+</div>
+
+<script>
+if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
+
+let contadorDivisao = 0;
+const estado = [];
+
+function adicionarDivisao(){
+  contadorDivisao += 1;
+  estado.push({ id: contadorDivisao, nome:'', itens:[{ nome:'', quantidade_padrao:0 }] });
+  renderDivisoes();
+}
+
+function removerDivisao(id){
+  const index = estado.findIndex((d) => d.id === id);
+  if(index >= 0){ estado.splice(index, 1); }
+  renderDivisoes();
+}
+
+function atualizarNomeDivisao(id, valor){
+  const divisao = estado.find((d) => d.id === id);
+  if(divisao){ divisao.nome = valor; }
+}
+
+function adicionarItem(idDivisao){
+  const divisao = estado.find((d) => d.id === idDivisao);
+  if(!divisao) return;
+  divisao.itens.push({ nome:'', quantidade_padrao:0 });
+  renderDivisoes();
+}
+
+function removerItem(idDivisao, idx){
+  const divisao = estado.find((d) => d.id === idDivisao);
+  if(!divisao) return;
+  divisao.itens.splice(idx,1);
+  renderDivisoes();
+}
+
+function atualizarItem(idDivisao, idx, campo, valor){
+  const divisao = estado.find((d) => d.id === idDivisao);
+  if(!divisao) return;
+  divisao.itens[idx][campo] = campo === 'quantidade_padrao' ? Number(valor || 0) : valor;
+}
+
+function renderDivisoes(){
+  const lista = document.getElementById('listaDivisoes');
+  lista.innerHTML = '';
+
+  estado.forEach((divisao) => {
+    const div = document.createElement('div');
+    div.className = 'divisao';
+
+    let itensHtml = '';
+    divisao.itens.forEach((item, idx) => {
+      itensHtml += `
+        <div class="item-row">
+          <input type="text" value="${item.nome || ''}" placeholder="Nome do item" oninput="atualizarItem(${divisao.id}, ${idx}, 'nome', this.value)">
+          <input type="number" value="${item.quantidade_padrao ?? 0}" min="0" placeholder="Qtd padrão" oninput="atualizarItem(${divisao.id}, ${idx}, 'quantidade_padrao', this.value)">
+          <button class="danger" onclick="removerItem(${divisao.id}, ${idx})">Excluir item</button>
+        </div>
+      `;
+    });
+
+    div.innerHTML = `
+      <div class="row">
+        <input type="text" value="${divisao.nome || ''}" placeholder="Nome da divisão" style="flex:1" oninput="atualizarNomeDivisao(${divisao.id}, this.value)">
+        <button class="danger" onclick="removerDivisao(${divisao.id})">Excluir divisão</button>
+      </div>
+      <div style="margin-top:8px">
+        <b>Itens da divisão</b>
+        ${itensHtml}
+      </div>
+      <div style="margin-top:8px">
+        <button class="primary" onclick="adicionarItem(${divisao.id})">+ Adicionar item</button>
+      </div>
+    `;
+
+    lista.appendChild(div);
+  });
+}
+
+function validarPayload(payload){
+  if(!payload.nome || !payload.nome.trim()) return 'Informe o nome do posto';
+  if(!Array.isArray(payload.divisoes) || payload.divisoes.length === 0) return 'Adicione ao menos 1 divisão';
+
+  const nomes = payload.divisoes.map((d) => d.nome.trim().toLowerCase());
+  const unicos = new Set(nomes);
+  if(unicos.size !== nomes.length) return 'Cada divisão deve ser única dentro do posto';
+
+  for(const divisao of payload.divisoes){
+    if(!divisao.nome || !divisao.nome.trim()) return 'Todas as divisões devem ter nome';
+    if(!Array.isArray(divisao.itens) || divisao.itens.length === 0) return `A divisão ${divisao.nome} precisa de ao menos 1 item`;
+    for(const item of divisao.itens){
+      if(!item.nome || !item.nome.trim()) return `Todo item da divisão ${divisao.nome} precisa de nome`;
+    }
+  }
+
+  return null;
+}
+
+async function salvarPostoCompleto(){
+  const payload = {
+    nome: document.getElementById('nomePosto').value,
+    divisoes: estado.map((d) => ({
+      nome: d.nome,
+      itens: d.itens.map((i) => ({ nome: i.nome, quantidade_padrao: Number(i.quantidade_padrao || 0) }))
+    }))
+  };
+
+  const erroValidacao = validarPayload(payload);
+  if(erroValidacao){
+    alert(erroValidacao);
+    return;
+  }
+
+  const res = await fetch('/postos/completo', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if(!res.ok){
+    alert(data.erro || 'Erro ao salvar posto');
+    return;
+  }
+
+  alert('Posto cadastrado com sucesso!');
+  window.location='admin.html';
+}
+
+adicionarDivisao();
+</script>
+</body>
+</html>
