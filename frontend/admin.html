@@ -24,20 +24,9 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
   <div class="card">
     <div class="row">
       <button class="btn-primary" onclick="window.location='cadastro-posto.html'">Cadastrar postos</button>
-      <button class="btn-primary" onclick="criarTarefa()">Adicionar tarefa diária</button>
-      <button class="btn-primary" onclick="carregarConferencias()">Verificar conferência dos postos</button>
+      <button class="btn-primary" onclick="window.location='tarefas-diarias.html'">Adicionar tarefa diária</button>
       <button class="btn-danger" onclick="logout()">Sair</button>
     </div>
-  </div>
-
-  <div class="card">
-    <h3>Gestão de postos (incluir / editar / excluir)</h3>
-    <div id="postosCrud">Carregando...</div>
-  </div>
-
-  <div class="card">
-    <h3>Tarefas diárias (incluir / editar / excluir)</h3>
-    <div id="tarefasCrud">Carregando...</div>
   </div>
 
   <div class="card">
@@ -53,44 +42,6 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 
 <script>
 if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
-
-async function carregarPostosCrud(){
-  const res = await fetch('/postos');
-  const postos = await res.json();
-  const container = document.getElementById('postosCrud');
-  container.innerHTML = '';
-  if(!postos.length){ container.innerHTML = '<p>Nenhum posto cadastrado.</p>'; return; }
-
-  postos.forEach((p) => {
-    const div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = `<div><b>${p.nome}</b> <small>(ID ${p.id})</small></div>
-      <div>
-        <button onclick="editarPosto(${p.id})">Editar</button>
-        <button class="btn-danger" onclick="excluirPosto(${p.id})">Excluir</button>
-      </div>`;
-    container.appendChild(div);
-  });
-}
-
-async function carregarTarefasCrud(){
-  const res = await fetch('/tarefas');
-  const tarefas = await res.json();
-  const container = document.getElementById('tarefasCrud');
-  container.innerHTML = '';
-  if(!tarefas.length){ container.innerHTML = '<p>Nenhuma tarefa cadastrada.</p>'; return; }
-
-  tarefas.forEach((t) => {
-    const div = document.createElement('div');
-    div.className = 'list-item';
-    div.innerHTML = `<div><b>${t.descricao}</b> ${t.ativa ? '<span class="tag">ativa</span>' : ''}</div>
-      <div>
-        <button onclick="editarTarefa(${t.id}, '${t.descricao.replace(/'/g, "\\'")}', ${t.ativa})">Editar</button>
-        <button class="btn-danger" onclick="excluirTarefa(${t.id})">Excluir</button>
-      </div>`;
-    container.appendChild(div);
-  });
-}
 
 async function carregarConferencias(){
   const resposta = await fetch('/dashboard/postos');
@@ -147,42 +98,8 @@ async function atualizarProblema(id){
   carregarAlteracoes();
 }
 
-function editarPosto(id){
-  window.location = `cadastro-posto.html?id=${id}`;
-}
-
-async function excluirPosto(id){
-  if(!confirm('Excluir este posto?')) return;
-  await fetch(`/postos/${id}`, {method:'DELETE'});
-  carregarPostosCrud();
-  carregarConferencias();
-}
-
-async function criarTarefa(){
-  const descricao = prompt('Descrição da tarefa diária:');
-  if(!descricao) return;
-  await fetch('/tarefas', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({descricao})});
-  carregarTarefasCrud();
-}
-
-async function editarTarefa(id, descricaoAtual, ativaAtual){
-  const descricao = prompt('Nova descrição da tarefa:', descricaoAtual);
-  if(!descricao) return;
-  const ativa = confirm('Marcar tarefa como ativa?\n(OK = ativa, Cancelar = inativa)');
-  await fetch(`/tarefas/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({descricao, ativa: ativaAtual ? ativa : ativa})});
-  carregarTarefasCrud();
-}
-
-async function excluirTarefa(id){
-  if(!confirm('Excluir esta tarefa diária?')) return;
-  await fetch(`/tarefas/${id}`, {method:'DELETE'});
-  carregarTarefasCrud();
-}
-
 function logout(){ localStorage.clear(); window.location='login.html'; }
 
-carregarPostosCrud();
-carregarTarefasCrud();
 carregarConferencias();
 carregarAlteracoes();
 </script>
