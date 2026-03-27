@@ -18,11 +18,20 @@ button{cursor:pointer;border:none}
 .item-row{display:flex;gap:8px;margin-top:6px}
 .item-row input{flex:1}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1 id="tituloPagina">Novo posto</h1>
+  <div class="topo">
+    <h1 id="tituloPagina" style="margin:0">Novo posto</h1>
+    <button onclick="window.location='admin.html'">Voltar</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Gestão de postos (incluir / editar / excluir)</h3>
+    <div id="postosCrud">Carregando...</div>
+  </div>
 
   <div class="card">
     <h3 style="margin-top:0">Gestão de postos (incluir / editar / excluir)</h3>
