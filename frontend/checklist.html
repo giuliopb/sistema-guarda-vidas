@@ -26,6 +26,7 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
   border:1px solid transparent;
   box-shadow:0 2px 6px rgba(0,0,0,.08);
   transition:background .2s ease,border-color .2s ease;
+  cursor:pointer;
 }
 .item-card.conferido{
   background:#e8f5e9;
@@ -50,9 +51,6 @@ input[type="number"],textarea{width:100%;border:1px solid #c6c6c6;border-radius:
 .warn{font-size:12px;color:#c62828;margin-top:4px;display:none}
 .warn.show{display:block}
 .btn-secondary{border:none;background:#666;color:#fff;padding:8px 10px;border-radius:8px;cursor:pointer}
-.footer{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #ddd;padding:10px}
-.footer button{width:100%;padding:12px;border:none;border-radius:10px;background:#1769aa;color:#fff;font-size:16px;font-weight:bold}
-.footer button:disabled{background:#99b7d0}
 .toast{
   position:fixed;
   left:50%;
@@ -77,10 +75,6 @@ input[type="number"],textarea{width:100%;border:1px solid #c6c6c6;border-radius:
   </div>
 
   <div class="container" id="lista"></div>
-
-  <div class="footer">
-    <button id="btnFinalizar" onclick="concluirDivisao()" disabled>Finalizar conferência da divisão</button>
-  </div>
   <div class="toast" id="toast"></div>
 
 <script>
@@ -91,6 +85,7 @@ const divisao = localStorage.getItem('divisao_id');
 let itens = [];
 const revisados = new Set();
 const alteracoes = new Map();
+let finalizandoDivisao = false;
 
 async function carregarItens(){
   const res = await fetch('/divisoes/'+divisao+'/itens');
@@ -109,6 +104,7 @@ async function carregarItens(){
   itens.forEach((i) => {
     const card = document.createElement('div');
     card.className='item-card';
+    card.onclick = () => marcarConferencia(i.id);
     card.innerHTML = `
       <div class="item-main">
         <div class="name">
@@ -120,9 +116,9 @@ async function carregarItens(){
         </label>
       </div>
 
-      <span class="link" onclick="toggleDetalhes(${i.id})">reportar problema / quantidade</span>
+      <span class="link" onclick="toggleDetalhes(${i.id}, event)">reportar problema / quantidade</span>
 
-      <div class="details" id="details-${i.id}">
+      <div class="details" id="details-${i.id}" onclick="event.stopPropagation()">
         <div class="row">
           <label style="font-size:13px">Qtd padrão: <b>${i.quantidade_padrao}</b></label>
         </div>
@@ -134,7 +130,7 @@ async function carregarItens(){
           <textarea id="desc-${i.id}" rows="2" placeholder="Descreva avaria/problema"></textarea>
         </div>
         <div class="row" style="margin-top:6px">
-          <button class="btn-secondary" onclick="salvarAlteracaoItem(${i.id})">Salvar alteração</button>
+          <button class="btn-secondary" onclick="salvarAlteracaoItem(${i.id}, {}, event)">Salvar alteração</button>
         </div>
       </div>
     `;
@@ -142,9 +138,17 @@ async function carregarItens(){
   });
 }
 
-function toggleDetalhes(itemId){
+function toggleDetalhes(itemId, event){
+  event.stopPropagation();
   const box = document.getElementById(`details-${itemId}`);
   box.classList.toggle('show');
+}
+
+function marcarConferencia(itemId){
+  const check = document.getElementById(`ok-${itemId}`);
+  if(check.checked){ return; }
+  check.checked = true;
+  toggleRevisado(itemId);
 }
 
 function toggleRevisado(itemId){
@@ -168,7 +172,8 @@ function avaliarQuantidade(itemId, padrao){
   else { warn.classList.remove('show'); }
 }
 
-function salvarAlteracaoItem(itemId, options = {}){
+function salvarAlteracaoItem(itemId, options = {}, event){
+  if(event){ event.stopPropagation(); }
   const { exibirFeedback = true } = options;
   const item = itens.find((it) => it.id === itemId);
   const qtd = Number(document.getElementById(`qtd-${itemId}`).value || 0);
@@ -199,10 +204,14 @@ function salvarAlteracaoItem(itemId, options = {}){
 
 function atualizarBotaoFinalizar(){
   const pronto = itens.length > 0 && revisados.size === itens.length;
-  document.getElementById('btnFinalizar').disabled = !pronto;
+  if(pronto && !finalizandoDivisao){
+    concluirDivisao();
+  }
 }
 
 async function concluirDivisao(){
+  if(finalizandoDivisao){ return; }
+  finalizandoDivisao = true;
   const body = {
     posto_id: posto,
     divisao_id: divisao,
@@ -218,6 +227,7 @@ async function concluirDivisao(){
 
   const data = await res.json();
   if(!res.ok){
+    finalizandoDivisao = false;
     alert(data.erro || 'Erro ao concluir divisão');
     return;
   }
