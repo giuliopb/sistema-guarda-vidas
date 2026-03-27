@@ -55,7 +55,12 @@ async function carregarTarefaDiaria(){
   try{
     const res = await fetch('/tarefas/ativa');
     const tarefa = await res.json();
-    document.getElementById('tarefaDiaria').innerText = tarefa?.descricao || 'Nenhuma tarefa diária cadastrada hoje.';
+    if(!tarefa){
+      document.getElementById('tarefaDiaria').innerText = 'Nenhuma tarefa diária cadastrada para hoje.';
+      return;
+    }
+
+    document.getElementById('tarefaDiaria').innerText = `${tarefa.nome || 'Tarefa'}: ${tarefa.descricao}`;
   }catch(e){
     document.getElementById('tarefaDiaria').innerText = 'Não foi possível carregar a tarefa diária.';
   }
