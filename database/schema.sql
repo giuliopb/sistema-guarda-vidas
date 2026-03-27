@@ -49,6 +49,16 @@ CREATE TABLE alteracoes (
 
 CREATE TABLE tarefas_diarias (
     id SERIAL PRIMARY KEY,
-    descricao TEXT,
-    data DATE
+    nome TEXT NOT NULL,
+    descricao TEXT NOT NULL,
+    dia_semana SMALLINT NOT NULL,
+    todos_postos BOOLEAN NOT NULL DEFAULT FALSE,
+    ativa BOOLEAN NOT NULL DEFAULT TRUE,
+    criada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE tarefas_diarias_postos (
+    tarefa_id INT NOT NULL REFERENCES tarefas_diarias(id) ON DELETE CASCADE,
+    posto_id INT NOT NULL REFERENCES postos(id) ON DELETE CASCADE,
+    PRIMARY KEY (tarefa_id, posto_id)
 );

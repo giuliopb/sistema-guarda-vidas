@@ -10,7 +10,6 @@ body{margin:0;font-family:Arial;background:#f4f6f9}
 .container{padding:15px}
 .card{background:#fff;border-radius:10px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,.08);cursor:pointer}
 .conferido{background:#e8f5e9;border:1px solid #4caf50;cursor:not-allowed}
-.alerta{background:#fff3cd;border:1px solid #ffe69c;padding:12px;border-radius:8px;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -19,7 +18,6 @@ body{margin:0;font-family:Arial;background:#f4f6f9}
   <div>Divisões</div>
 </div>
 <div class="container">
-  <div id="msg"></div>
   <div id="lista"></div>
 </div>
 
@@ -29,17 +27,10 @@ const posto = localStorage.getItem('posto_id');
 async function carregarDivisoes(){
   const res = await fetch('/divisoes/posto/'+posto+'/status');
   const payload = await res.json();
-  const { cicloConcluido, divisoes } = payload;
+  const { divisoes } = payload;
 
   const lista = document.getElementById('lista');
-  const msg = document.getElementById('msg');
   lista.innerHTML = '';
-
-  if(cicloConcluido){
-    msg.innerHTML = '<div class="alerta"><b>Conferência de posto realizada.</b> Todas as divisões foram liberadas para uma nova conferência.</div>';
-  }else{
-    msg.innerHTML = '';
-  }
 
   divisoes.forEach((d) => {
     const card = document.createElement('div');
@@ -48,7 +39,7 @@ async function carregarDivisoes(){
     const bloqueada = Boolean(d.data_hora);
     if(bloqueada){ card.classList.add('conferido'); }
 
-    card.innerHTML = `<div><b>${d.nome}</b><br><small>${bloqueada ? 'Conferida neste ciclo' : 'Pendente'}</small></div><div>›</div>`;
+    card.innerHTML = `<div><b>${d.nome}</b></div><div>›</div>`;
     card.onclick = () => abrirDivisao(d.id, bloqueada);
 
     lista.appendChild(card);
