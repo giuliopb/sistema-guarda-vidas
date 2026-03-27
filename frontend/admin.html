@@ -15,6 +15,9 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 .list-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #ececec}
 .list-item:last-child{border-bottom:none}
 .tag{padding:3px 8px;border-radius:20px;background:#eee;font-size:12px}
+.tarefa-item{margin:10px 0;padding:12px;border:1px solid #e3e7ee;border-radius:10px;background:#f9fbff}
+.tarefa-titulo{font-weight:bold;font-size:18px;margin-bottom:6px}
+.tarefa-desc{display:block;color:#444;margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -76,9 +79,9 @@ async function carregarTarefaDiariaHoje(){
     }
 
     alvo.innerHTML = tarefas.map((tarefa) => `
-      <div class="list-item">
-        <b>${tarefa.nome || 'Tarefa'}</b><br>
-        <small>${tarefa.descricao}</small><br>
+      <div class="tarefa-item">
+        <div class="tarefa-titulo">${tarefa.nome || 'Tarefa'}</div>
+        <small class="tarefa-desc">${tarefa.descricao}</small>
         <small><b>Postos:</b> ${tarefa.postos_texto || '-'}</small>
       </div>
     `).join('');
