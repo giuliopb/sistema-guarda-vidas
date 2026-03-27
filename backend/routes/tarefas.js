@@ -3,15 +3,33 @@ const router = express.Router();
 const pool = require('../db');
 
 const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+const DIAS_ENG_TO_NUM = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6
+};
 
 function nomeDiaSemana(numero) {
     if (numero === null || numero === undefined || Number.isNaN(Number(numero))) return null;
     return DIAS[Number(numero)] || null;
 }
 
+function obterDiaSemanaBrasil() {
+    const dia = new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        timeZone: 'America/Sao_Paulo'
+    }).format(new Date()).toLowerCase();
+
+    return DIAS_ENG_TO_NUM[dia] ?? new Date().getDay();
+}
+
 router.get('/ativa', async (req, res) => {
     try {
-        const hoje = new Date().getDay();
+        const hoje = obterDiaSemanaBrasil();
         const result = await pool.query(`
             SELECT t.id, t.nome, t.descricao, t.dia_semana, t.todos_postos, t.criada_em,
                    COALESCE(
@@ -39,6 +57,32 @@ router.get('/ativa', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ erro: 'Erro ao buscar tarefa ativa' });
+    }
+});
+
+router.get('/hoje', async (req, res) => {
+    try {
+        const hoje = obterDiaSemanaBrasil();
+        const result = await pool.query(`
+            SELECT t.id, t.nome, t.descricao, t.dia_semana, t.todos_postos, t.criada_em,
+                   COALESCE(STRING_AGG(DISTINCT p.nome, ', ' ORDER BY p.nome), '') AS postos
+            FROM tarefas_diarias t
+            LEFT JOIN tarefas_diarias_postos tp ON tp.tarefa_id = t.id
+            LEFT JOIN postos p ON p.id = tp.posto_id
+            WHERE (t.ativa = true OR t.ativa IS NULL)
+              AND (t.dia_semana = $1 OR t.dia_semana IS NULL)
+            GROUP BY t.id
+            ORDER BY t.todos_postos DESC, t.criada_em DESC
+        `, [hoje]);
+
+        res.json(result.rows.map((t) => ({
+            ...t,
+            dia_semana_nome: nomeDiaSemana(t.dia_semana),
+            postos_texto: t.todos_postos ? 'todos' : (t.postos || '-')
+        })));
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao buscar tarefas de hoje' });
     }
 });
 

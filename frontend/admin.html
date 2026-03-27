@@ -30,6 +30,11 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
   </div>
 
   <div class="card">
+    <h3>Tarefa diária de hoje</h3>
+    <p id="tarefaDiariaHoje">Carregando...</p>
+  </div>
+
+  <div class="card">
     <h3>Conferência dos postos</h3>
     <div id="conferencias">Carregando...</div>
   </div>
@@ -57,6 +62,23 @@ async function carregarConferencias(){
     div.innerHTML = `<div><b>${p.nome}</b><br><small>Última conferência: ${p.ultima_conferencia || 'Nunca'} | Guarda-vidas: ${p.ultimo_usuario || '-'}</small></div>`;
     container.appendChild(div);
   });
+}
+
+async function carregarTarefaDiariaHoje(){
+  try{
+    const res = await fetch('/tarefas/ativa');
+    const tarefa = await res.json();
+    const alvo = document.getElementById('tarefaDiariaHoje');
+
+    if(!tarefa){
+      alvo.innerText = 'Nenhuma tarefa diária cadastrada para hoje.';
+      return;
+    }
+
+    alvo.innerText = `${tarefa.nome || 'Tarefa'}: ${tarefa.descricao}`;
+  }catch(e){
+    document.getElementById('tarefaDiariaHoje').innerText = 'Não foi possível carregar a tarefa diária.';
+  }
 }
 
 async function carregarAlteracoes(){
@@ -100,6 +122,7 @@ async function atualizarProblema(id){
 
 function logout(){ localStorage.clear(); window.location='login.html'; }
 
+carregarTarefaDiariaHoje();
 carregarConferencias();
 carregarAlteracoes();
 </script>
