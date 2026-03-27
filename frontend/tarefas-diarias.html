@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tarefas Diárias</title>
+<style>
+body{font-family:Arial;background:#eef2f5;margin:0}
+.wrap{max-width:980px;margin:0 auto;padding:20px}
+.card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+label{font-size:14px;color:#333}
+input,textarea,select,button{padding:10px;border-radius:8px;border:1px solid #ccc;font-family:inherit}
+textarea{width:100%;min-height:80px;resize:vertical}
+button{border:none;cursor:pointer}
+.btn-primary{background:#1e88e5;color:#fff}
+.btn-danger{background:#e53935;color:#fff}
+.list-item{padding:12px 0;border-bottom:1px solid #ececec}
+.list-item:last-child{border-bottom:none}
+small{color:#666}
+.postos-lista{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.postos-lista label{background:#f5f7fa;padding:6px 10px;border-radius:8px;border:1px solid #e0e0e0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tarefas diárias</h1>
+
+  <div class="card">
+    <h3 style="margin-top:0">Nova tarefa diária</h3>
+    <div class="row" style="margin-bottom:10px">
+      <div style="flex:1;min-width:220px">
+        <label>Nome da tarefa</label>
+        <input id="nome" type="text" placeholder="Ex.: Limpeza dos materiais de APH" style="width:100%;margin-top:6px">
+      </div>
+      <div style="min-width:220px">
+        <label>Dia da semana</label>
+        <select id="diaSemana" style="width:100%;margin-top:6px">
+          <option value="1">Segunda-feira</option>
+          <option value="2">Terça-feira</option>
+          <option value="3">Quarta-feira</option>
+          <option value="4">Quinta-feira</option>
+          <option value="5">Sexta-feira</option>
+          <option value="6">Sábado</option>
+          <option value="0">Domingo</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <label>Descrição</label>
+      <textarea id="descricao" placeholder="Descreva como a tarefa deve ser executada."></textarea>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <label><input type="checkbox" id="todosPostos" onchange="alternarTodosPostos()"> Executar em todos os postos</label>
+      <div id="postosLista" class="postos-lista"></div>
+    </div>
+
+    <div class="row">
+      <button class="btn-primary" onclick="salvarTarefa()">Salvar tarefa</button>
+      <button onclick="window.location='admin.html'">Voltar para admin</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Tarefas cadastradas</h3>
+    <div id="listaTarefas">Carregando...</div>
+  </div>
+</div>
+
+<script>
+if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
+
+let postos = [];
+
+async function carregarPostos(){
+  const res = await fetch('/postos');
+  postos = await res.json();
+  const container = document.getElementById('postosLista');
+  container.innerHTML = '';
+
+  postos.forEach((p) => {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" value="${p.id}" class="posto-check"> ${p.nome}`;
+    container.appendChild(label);
+  });
+}
+
+function alternarTodosPostos(){
+  const todos = document.getElementById('todosPostos').checked;
+  document.querySelectorAll('.posto-check').forEach((el) => {
+    el.checked = false;
+    el.disabled = todos;
+  });
+}
+
+function coletarPostosSelecionados(){
+  return Array.from(document.querySelectorAll('.posto-check:checked')).map((el) => Number(el.value));
+}
+
+async function salvarTarefa(){
+  const nome = document.getElementById('nome').value.trim();
+  const descricao = document.getElementById('descricao').value.trim();
+  const dia_semana = Number(document.getElementById('diaSemana').value);
+  const todos_postos = document.getElementById('todosPostos').checked;
+  const posto_ids = coletarPostosSelecionados();
+
+  if(!nome){ alert('Informe o nome da tarefa.'); return; }
+  if(!descricao){ alert('Informe a descrição da tarefa.'); return; }
+  if(!todos_postos && posto_ids.length === 0){ alert('Selecione ao menos 1 posto ou marque todos os postos.'); return; }
+
+  const res = await fetch('/tarefas', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ nome, descricao, dia_semana, todos_postos, posto_ids })
+  });
+
+  const data = await res.json();
+  if(!res.ok){
+    alert(data.erro || 'Erro ao salvar tarefa');
+    return;
+  }
+
+  alert('Tarefa diária cadastrada com sucesso!');
+  document.getElementById('nome').value = '';
+  document.getElementById('descricao').value = '';
+  document.getElementById('todosPostos').checked = false;
+  alternarTodosPostos();
+  carregarTarefas();
+}
+
+async function excluirTarefa(id){
+  if(!confirm('Excluir esta tarefa?')) return;
+  await fetch(`/tarefas/${id}`, {method:'DELETE'});
+  carregarTarefas();
+}
+
+async function carregarTarefas(){
+  const res = await fetch('/tarefas');
+  const tarefas = await res.json();
+  const container = document.getElementById('listaTarefas');
+
+  container.innerHTML = '';
+  if(!tarefas.length){
+    container.innerHTML = '<p>Nenhuma tarefa cadastrada.</p>';
+    return;
+  }
+
+  tarefas.forEach((t) => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = `
+      <div><b>Tarefa diária:</b> ${t.nome}</div>
+      <div><b>Descrição:</b> ${t.descricao}</div>
+      <div><b>Dia:</b> ${t.dia_semana_nome || '-'}</div>
+      <div><b>Postos:</b> ${t.postos_texto || '-'}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn-danger" onclick="excluirTarefa(${t.id})">Excluir</button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+carregarPostos().then(carregarTarefas);
+</script>
+</body>
+</html>
