@@ -41,7 +41,7 @@ body{margin:0;font-family:Arial;background:#f4f6f9}
 
   <div class="card">
     <h3>Tarefa diária</h3>
-    <p id="tarefaDiaria">Carregando...</p>
+    <div id="tarefasHoje">Carregando...</div>
   </div>
 </div>
 
@@ -53,16 +53,24 @@ document.getElementById('usuarioNome').innerText = usuarioNome || 'Guarda-vidas'
 
 async function carregarTarefaDiaria(){
   try{
-    const res = await fetch('/tarefas/ativa');
-    const tarefa = await res.json();
-    if(!tarefa){
-      document.getElementById('tarefaDiaria').innerText = 'Nenhuma tarefa diária cadastrada para hoje.';
+    const res = await fetch('/tarefas/hoje');
+    const tarefas = await res.json();
+    const container = document.getElementById('tarefasHoje');
+
+    if(!Array.isArray(tarefas) || !tarefas.length){
+      container.innerText = 'Nenhuma tarefa diária cadastrada para hoje.';
       return;
     }
 
-    document.getElementById('tarefaDiaria').innerText = `${tarefa.nome || 'Tarefa'}: ${tarefa.descricao}`;
+    container.innerHTML = tarefas.map((tarefa) => `
+      <div style="margin-bottom:10px">
+        <b>${tarefa.nome || 'Tarefa'}</b><br>
+        <small>${tarefa.descricao}</small><br>
+        <small><b>Postos:</b> ${tarefa.postos_texto || '-'}</small>
+      </div>
+    `).join('');
   }catch(e){
-    document.getElementById('tarefaDiaria').innerText = 'Não foi possível carregar a tarefa diária.';
+    document.getElementById('tarefasHoje').innerText = 'Não foi possível carregar as tarefas diárias.';
   }
 }
 

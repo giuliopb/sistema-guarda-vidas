@@ -31,7 +31,7 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 
   <div class="card">
     <h3>Tarefa diária de hoje</h3>
-    <p id="tarefaDiariaHoje">Carregando...</p>
+    <div id="tarefasDiariasHoje">Carregando...</div>
   </div>
 
   <div class="card">
@@ -66,18 +66,24 @@ async function carregarConferencias(){
 
 async function carregarTarefaDiariaHoje(){
   try{
-    const res = await fetch('/tarefas/ativa');
-    const tarefa = await res.json();
-    const alvo = document.getElementById('tarefaDiariaHoje');
+    const res = await fetch('/tarefas/hoje');
+    const tarefas = await res.json();
+    const alvo = document.getElementById('tarefasDiariasHoje');
 
-    if(!tarefa){
+    if(!Array.isArray(tarefas) || !tarefas.length){
       alvo.innerText = 'Nenhuma tarefa diária cadastrada para hoje.';
       return;
     }
 
-    alvo.innerText = `${tarefa.nome || 'Tarefa'}: ${tarefa.descricao}`;
+    alvo.innerHTML = tarefas.map((tarefa) => `
+      <div class="list-item">
+        <b>${tarefa.nome || 'Tarefa'}</b><br>
+        <small>${tarefa.descricao}</small><br>
+        <small><b>Postos:</b> ${tarefa.postos_texto || '-'}</small>
+      </div>
+    `).join('');
   }catch(e){
-    document.getElementById('tarefaDiariaHoje').innerText = 'Não foi possível carregar a tarefa diária.';
+    document.getElementById('tarefasDiariasHoje').innerText = 'Não foi possível carregar as tarefas diárias.';
   }
 }
 
