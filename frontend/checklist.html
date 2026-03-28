@@ -145,8 +145,7 @@ function toggleDetalhes(itemId, event){
 
 function marcarConferencia(itemId){
   const check = document.getElementById(`ok-${itemId}`);
-  if(check.checked){ return; }
-  check.checked = true;
+  check.checked = !check.checked;
   toggleRevisado(itemId);
 }
 
