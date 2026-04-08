@@ -55,6 +55,13 @@ async function inserirUsuarioSeguro({ nome, email, senha, tipo, autorizadoDeseja
     }
 }
 
+function mensagemErroCriacao(error) {
+    if (!error) return 'Erro ao criar cadastro';
+    if (error.code === '23505') return 'Email já cadastrado';
+    if (error.code === 'ECONNREFUSED') return 'Banco de dados indisponível no momento';
+    return error.message || 'Erro ao criar cadastro';
+}
+
 // LOGIN
 router.post("/login", async (req, res) => {
     let { email, senha } = req.body;
@@ -135,7 +142,7 @@ router.post('/cadastro', async (req, res) => {
         res.status(201).json({ ok: true, usuario: result.rows[0], mensagem: 'Cadastro criado. Aguarde autorização do administrador.' });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ erro: 'Erro ao criar cadastro' });
+        res.status(500).json({ erro: mensagemErroCriacao(error) });
     }
 });
 
@@ -182,7 +189,7 @@ router.post('/', async (req, res) => {
         res.status(201).json(result.rows[0]);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ erro: 'Erro ao criar usuário' });
+        res.status(500).json({ erro: mensagemErroCriacao(error) });
     }
 });
 

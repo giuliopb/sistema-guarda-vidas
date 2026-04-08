@@ -26,27 +26,35 @@ button{border:none;background:#1565c0;color:#fff;cursor:pointer}
 
 <script>
 async function cadastrar(){
-  const nome = document.getElementById('nome').value;
-  const email = document.getElementById('email').value;
-  const senha = document.getElementById('senha').value;
-
-  const res = await fetch('/usuarios/cadastro', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({nome, email, senha})
-  });
-
-  const data = await res.json();
   const msg = document.getElementById('msg');
+  msg.style.color = '#333';
+  msg.innerText = 'Enviando...';
 
-  if(!res.ok){
+  try{
+    const nome = document.getElementById('nome').value;
+    const email = document.getElementById('email').value;
+    const senha = document.getElementById('senha').value;
+
+    const res = await fetch('/usuarios/cadastro', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nome, email, senha})
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if(!res.ok){
+      msg.style.color = 'red';
+      msg.innerText = data.erro || 'Não foi possível enviar o cadastro';
+      return;
+    }
+
+    msg.style.color = 'green';
+    msg.innerText = data.mensagem || 'Cadastro enviado! Aguarde autorização do administrador.';
+  }catch(e){
     msg.style.color = 'red';
-    msg.innerText = data.erro || 'Não foi possível enviar o cadastro';
-    return;
+    msg.innerText = 'Falha de conexão ao enviar cadastro';
   }
-
-  msg.style.color = 'green';
-  msg.innerText = 'Cadastro enviado! Aguarde autorização do administrador.';
 }
 </script>
 </body>
