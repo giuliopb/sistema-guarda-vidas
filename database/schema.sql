@@ -3,7 +3,8 @@ CREATE TABLE usuarios (
     nome VARCHAR(100),
     email VARCHAR(100) UNIQUE,
     senha VARCHAR(200),
-    tipo VARCHAR(20) -- admin ou gv
+    tipo VARCHAR(20), -- admin ou gv
+    autorizado BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE postos (

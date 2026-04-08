@@ -2,6 +2,17 @@ const pool = require('../db');
 
 async function initDatabase() {
     await pool.query(`
+        ALTER TABLE usuarios
+        ADD COLUMN IF NOT EXISTS autorizado BOOLEAN NOT NULL DEFAULT true
+    `);
+
+    await pool.query(`
+        UPDATE usuarios
+        SET autorizado = true
+        WHERE autorizado IS NULL
+    `);
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS tarefas_diarias (
             id SERIAL PRIMARY KEY,
             nome TEXT,
