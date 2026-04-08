@@ -64,6 +64,7 @@ router.get('/alteracoes', async (req, res) => {
             JOIN itens i ON i.id = a.item_id
             JOIN divisoes d ON d.id = i.divisao_id
             JOIN postos p ON p.id = d.posto_id
+            WHERE a.status <> 'resolvido'
             ORDER BY
                 CASE a.status
                     WHEN 'pendente' THEN 0
