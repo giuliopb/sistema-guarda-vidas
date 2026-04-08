@@ -63,3 +63,18 @@ CREATE TABLE tarefas_diarias_postos (
     posto_id INT NOT NULL REFERENCES postos(id) ON DELETE CASCADE,
     PRIMARY KEY (tarefa_id, posto_id)
 );
+
+CREATE TABLE trocas_servico (
+    id SERIAL PRIMARY KEY,
+    solicitante_id INT NOT NULL REFERENCES usuarios(id),
+    usuario_troca_id INT NOT NULL REFERENCES usuarios(id),
+    data_servico_cedido DATE NOT NULL,
+    posto_cedido_id INT NOT NULL REFERENCES postos(id),
+    carga_horaria_cedida SMALLINT NOT NULL,
+    possui_retorno BOOLEAN NOT NULL DEFAULT FALSE,
+    data_retorno DATE,
+    posto_retorno_id INT REFERENCES postos(id),
+    carga_horaria_retorno SMALLINT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pendente',
+    criada_em TIMESTAMP NOT NULL DEFAULT NOW()
+);
