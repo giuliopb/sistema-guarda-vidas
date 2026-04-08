@@ -17,6 +17,12 @@ input,select,button{padding:10px;border-radius:8px;border:1px solid #ccc;width:1
 .actions button{width:auto;border:none;cursor:pointer}
 .primary{background:#1565c0;color:#fff}
 .muted{color:#666;font-size:13px}
+.troca-item{border:1px solid #e3e7ee;border-radius:10px;padding:10px;margin-top:8px;background:#fafcff}
+.status{display:inline-block;padding:3px 8px;border-radius:14px;font-size:12px;color:#fff}
+.status-pendente{background:#f9a825}
+.status-autorizada{background:#2e7d32}
+.status-negada{background:#c62828}
+.paginacao{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
 @media (max-width: 700px){ .row{grid-template-columns:1fr;} }
 </style>
 </head>
@@ -87,11 +93,23 @@ input,select,button{padding:10px;border-radius:8px;border:1px solid #ccc;width:1
       <button onclick="voltar()">Cancelar</button>
     </div>
   </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0">Trocas solicitadas</h3>
+    <div id="historicoTrocas">Carregando...</div>
+    <div class="paginacao">
+      <button onclick="paginaAnterior()">← Anterior</button>
+      <small id="paginaInfo">Página 1</small>
+      <button onclick="proximaPagina()">Próxima →</button>
+    </div>
+  </div>
 </div>
 
 <script>
 const usuarioId = localStorage.getItem('usuario_id');
 if(!usuarioId){ window.location='login.html'; }
+let paginaAtual = 1;
+let totalPaginas = 1;
 
 async function carregarUsuarios(){
   const res = await fetch(`/trocas/usuarios?solicitante_id=${usuarioId}`);
@@ -166,14 +184,77 @@ async function enviarSolicitacao(){
   }
 
   alert('Solicitação enviada com sucesso!');
-  window.location='index.html';
+  paginaAtual = 1;
+  carregarHistoricoTrocas();
 }
 
 function voltar(){ window.location='index.html'; }
 
+function formatarData(dataIso){
+  if(!dataIso) return '-';
+  const data = new Date(dataIso);
+  if(Number.isNaN(data.getTime())) return '-';
+  const [ano, mes, dia] = dataIso.substring(0,10).split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+function classeStatus(status){
+  if(status === 'autorizada') return 'status status-autorizada';
+  if(status === 'negada') return 'status status-negada';
+  return 'status status-pendente';
+}
+
+async function carregarHistoricoTrocas(){
+  const res = await fetch(`/trocas/minhas?usuario_id=${usuarioId}&page=${paginaAtual}`);
+  const data = await res.json();
+  const container = document.getElementById('historicoTrocas');
+  container.innerHTML = '';
+
+  if(!res.ok){
+    container.innerText = data.erro || 'Não foi possível carregar as trocas solicitadas.';
+    return;
+  }
+
+  totalPaginas = Number(data.total_paginas || 1);
+  document.getElementById('paginaInfo').innerText = `Página ${paginaAtual} de ${totalPaginas}`;
+
+  if(!Array.isArray(data.trocas) || !data.trocas.length){
+    container.innerHTML = '<p>Nenhuma troca encontrada.</p>';
+    return;
+  }
+
+  data.trocas.forEach((troca) => {
+    const div = document.createElement('div');
+    div.className = 'troca-item';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <b>${troca.solicitante_nome} ↔ ${troca.usuario_troca_nome}</b>
+        <span class="${classeStatus(troca.status)}">${troca.status}</span>
+      </div>
+      <small><b>Solicitada em:</b> ${formatarData(troca.criada_em)}</small><br>
+      <small><b>Serviço cedido:</b> ${formatarData(troca.data_servico_cedido)} | ${troca.carga_horaria_cedida}h | ${troca.posto_cedido_nome}</small><br>
+      <small><b>Retorno:</b> ${troca.possui_retorno ? `${formatarData(troca.data_retorno)} | ${troca.carga_horaria_retorno}h | ${troca.posto_retorno_nome}` : 'Nenhum'}</small>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function paginaAnterior(){
+  if(paginaAtual <= 1) return;
+  paginaAtual -= 1;
+  carregarHistoricoTrocas();
+}
+
+function proximaPagina(){
+  if(paginaAtual >= totalPaginas) return;
+  paginaAtual += 1;
+  carregarHistoricoTrocas();
+}
+
 carregarUsuarios();
 carregarPostos();
 alternarRetorno();
+carregarHistoricoTrocas();
 </script>
 </body>
 </html>
