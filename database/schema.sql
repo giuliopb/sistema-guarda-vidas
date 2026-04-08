@@ -21,7 +21,8 @@ CREATE TABLE itens (
     id SERIAL PRIMARY KEY,
     divisao_id INT REFERENCES divisoes(id),
     nome VARCHAR(100),
-    quantidade_padrao INT
+    quantidade_padrao INT,
+    quantidade_atual INT
 );
 
 CREATE TABLE conferencias (

@@ -168,6 +168,11 @@ router.post('/conferir', async (req, res) => {
             const descricao = (alt.descricao || '').trim();
             const abaixoPadrao = quantidadeEncontrada < quantidadePadrao;
 
+            await pool.query(
+                'UPDATE itens SET quantidade_atual = $1 WHERE id = $2',
+                [quantidadeEncontrada, alt.item_id]
+            );
+
             if (!abaixoPadrao && !descricao) {
                 continue;
             }

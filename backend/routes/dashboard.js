@@ -50,6 +50,7 @@ router.get('/alteracoes', async (req, res) => {
             JOIN itens i ON i.id = a.item_id
             JOIN divisoes d ON d.id = i.divisao_id
             JOIN postos p ON p.id = d.posto_id
+            WHERE a.status <> 'resolvido'
             ORDER BY
                 CASE a.status
                     WHEN 'pendente' THEN 0
@@ -90,6 +91,55 @@ router.put('/alteracoes/:id', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ erro: 'Erro ao atualizar alteração' });
+    }
+});
+
+
+
+router.put('/alteracoes/:id/resolver', async (req, res) => {
+    const { id } = req.params;
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const alteracaoResult = await client.query(
+            `SELECT a.id, a.item_id, i.quantidade_padrao
+             FROM alteracoes a
+             JOIN itens i ON i.id = a.item_id
+             WHERE a.id = $1`,
+            [id]
+        );
+
+        if (!alteracaoResult.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ erro: 'Alteração não encontrada' });
+        }
+
+        const alteracao = alteracaoResult.rows[0];
+
+        await client.query(
+            'UPDATE alteracoes SET quantidade_encontrada = $1, status = $2, resolucao = $3 WHERE id = $4',
+            [alteracao.quantidade_padrao, 'resolvido', 'Resolvido pelo admin', id]
+        );
+
+        await client.query(
+            'UPDATE itens SET quantidade_atual = $1 WHERE id = $2',
+            [alteracao.quantidade_padrao, alteracao.item_id]
+        );
+
+        await client.query('DELETE FROM alteracoes WHERE id = $1', [id]);
+
+        await client.query('COMMIT');
+
+        res.json({ ok: true, mensagem: 'Problema resolvido e removido da lista' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao resolver alteração' });
+    } finally {
+        client.release();
     }
 });
 
