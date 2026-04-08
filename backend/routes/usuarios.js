@@ -32,6 +32,29 @@ function validarCamposBasicos(nome, email, senha) {
     return null;
 }
 
+async function inserirUsuarioSeguro({ nome, email, senha, tipo, autorizadoDesejado }) {
+    try {
+        const result = await pool.query(
+            `INSERT INTO usuarios (nome, email, senha, tipo, autorizado)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, nome, email, tipo, autorizado`,
+            [nome, email, senha, tipo, autorizadoDesejado]
+        );
+        return result;
+    } catch (error) {
+        if (error && error.code === '42703') {
+            const fallback = await pool.query(
+                `INSERT INTO usuarios (nome, email, senha, tipo)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING id, nome, email, tipo, true AS autorizado`,
+                [nome, email, senha, tipo]
+            );
+            return fallback;
+        }
+        throw error;
+    }
+}
+
 // LOGIN
 router.post("/login", async (req, res) => {
     let { email, senha } = req.body;
@@ -94,18 +117,20 @@ router.post('/cadastro', async (req, res) => {
         }
 
         const result = possuiAutorizado
-            ? await pool.query(
-                `INSERT INTO usuarios (nome, email, senha, tipo, autorizado)
-                 VALUES ($1, $2, $3, 'gv', false)
-                 RETURNING id, nome, email, tipo, autorizado`,
-                [nome.trim(), email.trim().toLowerCase(), senha.trim()]
-            )
-            : await pool.query(
-                `INSERT INTO usuarios (nome, email, senha, tipo)
-                 VALUES ($1, $2, $3, 'gv')
-                 RETURNING id, nome, email, tipo, true AS autorizado`,
-                [nome.trim(), email.trim().toLowerCase(), senha.trim()]
-            );
+            ? await inserirUsuarioSeguro({
+                nome: nome.trim(),
+                email: email.trim().toLowerCase(),
+                senha: senha.trim(),
+                tipo: 'gv',
+                autorizadoDesejado: false
+            })
+            : await inserirUsuarioSeguro({
+                nome: nome.trim(),
+                email: email.trim().toLowerCase(),
+                senha: senha.trim(),
+                tipo: 'gv',
+                autorizadoDesejado: true
+            });
 
         res.status(201).json({ ok: true, usuario: result.rows[0], mensagem: 'Cadastro criado. Aguarde autorização do administrador.' });
     } catch (error) {
@@ -146,19 +171,13 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ erro: 'Email já cadastrado' });
         }
 
-        const result = possuiAutorizado
-            ? await pool.query(
-                `INSERT INTO usuarios (nome, email, senha, tipo, autorizado)
-                 VALUES ($1, $2, $3, $4, $5)
-                 RETURNING id, nome, email, tipo, autorizado`,
-                [nome.trim(), email.trim().toLowerCase(), senha.trim(), tipo, Boolean(autorizado)]
-            )
-            : await pool.query(
-                `INSERT INTO usuarios (nome, email, senha, tipo)
-                 VALUES ($1, $2, $3, $4)
-                 RETURNING id, nome, email, tipo, true AS autorizado`,
-                [nome.trim(), email.trim().toLowerCase(), senha.trim(), tipo]
-            );
+        const result = await inserirUsuarioSeguro({
+            nome: nome.trim(),
+            email: email.trim().toLowerCase(),
+            senha: senha.trim(),
+            tipo,
+            autorizadoDesejado: possuiAutorizado ? Boolean(autorizado) : true
+        });
 
         res.status(201).json(result.rows[0]);
     } catch (error) {
