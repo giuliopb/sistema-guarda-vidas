@@ -7,6 +7,7 @@ const postosRoutes = require('./routes/postos');
 const divisoesRoutes = require('./routes/divisoes');
 const dashboardRoutes = require('./routes/dashboard');
 const tarefasRoutes = require('./routes/tarefas');
+const trocasRoutes = require('./routes/trocas');
 const initDatabase = require('./database/init');
 
 const app = express();
@@ -21,6 +22,7 @@ app.use('/postos', postosRoutes);
 app.use('/divisoes', divisoesRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/tarefas', tarefasRoutes);
+app.use('/trocas', trocasRoutes);
 
 initDatabase()
     .then(() => {
