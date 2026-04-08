@@ -5,6 +5,13 @@ const jwt = require("jsonwebtoken");
 
 const SECRET = "segredo_super_secreto";
 
+async function garantirColunaAutorizado() {
+    await pool.query(`
+        ALTER TABLE usuarios
+        ADD COLUMN IF NOT EXISTS autorizado BOOLEAN NOT NULL DEFAULT true
+    `);
+}
+
 function validarCamposBasicos(nome, email, senha) {
     if (!nome || !nome.trim()) return "Nome completo é obrigatório";
     if (!email || !email.trim()) return "Email é obrigatório";
@@ -17,6 +24,8 @@ router.post("/login", async (req, res) => {
     let { email, senha } = req.body;
 
     try {
+        await garantirColunaAutorizado();
+
         if (!email || !senha) {
             return res.status(400).json({ erro: "Email e senha são obrigatórios" });
         }
@@ -64,6 +73,8 @@ router.post('/cadastro', async (req, res) => {
     if (erro) return res.status(400).json({ erro });
 
     try {
+        await garantirColunaAutorizado();
+
         const existe = await pool.query('SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1) LIMIT 1', [email.trim()]);
         if (existe.rows.length) {
             return res.status(400).json({ erro: 'Email já cadastrado' });
@@ -86,6 +97,8 @@ router.post('/cadastro', async (req, res) => {
 // LISTA DE CADASTROS
 router.get('/', async (req, res) => {
     try {
+        await garantirColunaAutorizado();
+
         const result = await pool.query(
             `SELECT id, nome, email, tipo, autorizado
              FROM usuarios
@@ -106,6 +119,8 @@ router.post('/', async (req, res) => {
     if (erro) return res.status(400).json({ erro });
 
     try {
+        await garantirColunaAutorizado();
+
         const existe = await pool.query('SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1) LIMIT 1', [email.trim()]);
         if (existe.rows.length) {
             return res.status(400).json({ erro: 'Email já cadastrado' });
@@ -130,6 +145,8 @@ router.put('/:id/autorizar', async (req, res) => {
     const { id } = req.params;
 
     try {
+        await garantirColunaAutorizado();
+
         const result = await pool.query(
             'UPDATE usuarios SET autorizado = true WHERE id = $1 RETURNING id, nome, email, tipo, autorizado',
             [id]
@@ -152,6 +169,8 @@ router.put('/:id', async (req, res) => {
     const { nome, email, senha, tipo, autorizado } = req.body;
 
     try {
+        await garantirColunaAutorizado();
+
         const atual = await pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
         if (!atual.rows.length) {
             return res.status(404).json({ erro: 'Usuário não encontrado' });
