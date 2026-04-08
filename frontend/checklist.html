@@ -106,7 +106,7 @@ async function carregarItens(){
     card.onclick = () => marcarConferencia(i.id);
     card.innerHTML = `
       <div class="item-main">
-        <div class="name" id="label-${i.id}">${Number(i.quantidade_atual ?? i.quantidade_padrao || 0)}x ${i.nome}</div>
+        <div class="name" id="label-${i.id}">${Number((i.quantidade_atual ?? i.quantidade_padrao) || 0)}x ${i.nome}</div>
         <label class="switch">
           <input type="checkbox" id="ok-${i.id}" onchange="toggleRevisado(${i.id})">
           <span class="slider"></span>
@@ -119,10 +119,10 @@ async function carregarItens(){
 
       <div class="details" id="details-${i.id}" onclick="event.stopPropagation()">
         <div class="row">
-          <label style="font-size:13px">Qtd padrão: <b>${i.quantidade_padrao}</b> | atual: <b>${i.quantidade_atual ?? i.quantidade_padrao}</b></label>
+          <label style="font-size:13px">Qtd padrão: <b>${i.quantidade_padrao}</b> | atual: <b>${(i.quantidade_atual ?? i.quantidade_padrao)}</b></label>
         </div>
         <div class="row" style="margin-top:6px">
-          <input type="number" id="qtd-${i.id}" min="0" value="${i.quantidade_atual ?? i.quantidade_padrao}" oninput="avaliarQuantidade(${i.id}, ${i.quantidade_padrao})">
+          <input type="number" id="qtd-${i.id}" min="0" value="${(i.quantidade_atual ?? i.quantidade_padrao)}" oninput="avaliarQuantidade(${i.id}, ${i.quantidade_padrao})">
         </div>
         <div class="warn" id="warn-${i.id}">Quantidade abaixo do padrão.</div>
         <div class="row" style="margin-top:6px">
