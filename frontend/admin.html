@@ -14,7 +14,6 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
 .list-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #ececec}
 .list-item:last-child{border-bottom:none}
-.tag{padding:3px 8px;border-radius:20px;background:#eee;font-size:12px}
 .tarefa-item{margin:10px 0;padding:12px;border:1px solid #e3e7ee;border-radius:10px;background:#f9fbff}
 .tarefa-titulo{font-weight:bold;font-size:18px;margin-bottom:6px}
 .tarefa-desc{display:block;color:#444;margin-bottom:6px}
@@ -51,6 +50,30 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 <script>
 if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
 
+function formatarDataHoraBrasilia(dataIso){
+  if(!dataIso) return 'Nunca';
+  const data = new Date(dataIso);
+  if(Number.isNaN(data.getTime())) return 'Nunca';
+
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).formatToParts(data);
+
+  const valores = Object.fromEntries(
+    partes
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value])
+  );
+
+  return `${valores.hour}:${valores.minute} ${valores.day}/${valores.month}/${valores.year}`;
+}
+
 async function carregarConferencias(){
   const resposta = await fetch('/dashboard/postos');
   const postos = await resposta.json();
@@ -62,7 +85,7 @@ async function carregarConferencias(){
   postos.forEach((p) => {
     const div = document.createElement('div');
     div.className = 'list-item';
-    div.innerHTML = `<div><b>${p.nome}</b><br><small>Última conferência: ${p.ultima_conferencia || 'Nunca'} | Guarda-vidas: ${p.ultimo_usuario || '-'}</small></div>`;
+    div.innerHTML = `<div><b>${p.nome}</b><br><small>Última conferência: ${formatarDataHoraBrasilia(p.ultima_conferencia)} | Guarda-vidas: ${p.ultimo_usuario || '-'}</small></div>`;
     container.appendChild(div);
   });
 }
@@ -107,25 +130,15 @@ async function carregarAlteracoes(){
         <small>${a.descricao} | Qtd encontrada: ${a.quantidade_encontrada ?? '-'} / padrão: ${a.quantidade_padrao}</small>
       </div>
       <div>
-        <span class="tag">${a.status}</span>
-        <button onclick="atualizarProblema(${a.id})">Atualizar</button>
+        <button onclick="resolverProblema(${a.id})">Resolvido</button>
       </div>
     `;
     container.appendChild(div);
   });
 }
 
-async function atualizarProblema(id){
-  const status = prompt('Novo status (pendente, em_correcao, resolvido):', 'em_correcao');
-  if(!status) return;
-  const resolucao = prompt('Observação de atualização (opcional):', '');
-
-  await fetch(`/dashboard/alteracoes/${id}`, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({status, resolucao})
-  });
-
+async function resolverProblema(id){
+  await fetch(`/dashboard/alteracoes/${id}/resolver`, { method:'PUT' });
   carregarAlteracoes();
 }
 
