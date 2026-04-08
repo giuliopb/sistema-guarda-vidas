@@ -10,8 +10,7 @@ router.get('/usuarios', async (req, res) => {
             `
             SELECT id, nome
             FROM usuarios
-            WHERE tipo = 'gv'
-              AND ($1::int = 0 OR id <> $1)
+            WHERE ($1::int = 0 OR id <> $1)
             ORDER BY nome
             `,
             [solicitanteId]
