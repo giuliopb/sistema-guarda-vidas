@@ -37,6 +37,7 @@ router.get('/alteracoes', async (req, res) => {
         const result = await pool.query(`
             SELECT
                 a.id,
+                a.item_id,
                 a.descricao,
                 a.quantidade_encontrada,
                 a.status,
@@ -46,7 +47,20 @@ router.get('/alteracoes', async (req, res) => {
                 i.quantidade_padrao,
                 d.nome AS divisao_nome,
                 p.nome AS posto_nome
-            FROM alteracoes a
+            FROM (
+                SELECT DISTINCT ON (item_id)
+                    id,
+                    item_id,
+                    conferencia_id,
+                    quantidade_encontrada,
+                    descricao,
+                    status,
+                    resolucao,
+                    criada_em
+                FROM alteracoes
+                WHERE status <> 'resolvido'
+                ORDER BY item_id, criada_em DESC
+            ) a
             JOIN itens i ON i.id = a.item_id
             JOIN divisoes d ON d.id = i.divisao_id
             JOIN postos p ON p.id = d.posto_id
@@ -90,6 +104,55 @@ router.put('/alteracoes/:id', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ erro: 'Erro ao atualizar alteração' });
+    }
+});
+
+
+
+router.put('/alteracoes/:id/resolver', async (req, res) => {
+    const { id } = req.params;
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const alteracaoResult = await client.query(
+            `SELECT a.id, a.item_id, i.quantidade_padrao
+             FROM alteracoes a
+             JOIN itens i ON i.id = a.item_id
+             WHERE a.id = $1`,
+            [id]
+        );
+
+        if (!alteracaoResult.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ erro: 'Alteração não encontrada' });
+        }
+
+        const alteracao = alteracaoResult.rows[0];
+
+        await client.query(
+            'UPDATE alteracoes SET quantidade_encontrada = $1, status = $2, resolucao = $3 WHERE id = $4',
+            [alteracao.quantidade_padrao, 'resolvido', 'Resolvido pelo admin', id]
+        );
+
+        await client.query(
+            'UPDATE itens SET quantidade_atual = $1 WHERE id = $2',
+            [alteracao.quantidade_padrao, alteracao.item_id]
+        );
+
+        await client.query('DELETE FROM alteracoes WHERE id = $1', [id]);
+
+        await client.query('COMMIT');
+
+        res.json({ ok: true, mensagem: 'Problema resolvido e removido da lista' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao resolver alteração' });
+    } finally {
+        client.release();
     }
 });
 
