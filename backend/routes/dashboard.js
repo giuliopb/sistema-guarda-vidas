@@ -124,6 +124,11 @@ router.put('/alteracoes/:id/resolver', async (req, res) => {
             [alteracao.quantidade_padrao, 'resolvido', 'Resolvido pelo admin', id]
         );
 
+        await client.query(
+            'UPDATE itens SET quantidade_atual = $1 WHERE id = $2',
+            [alteracao.quantidade_padrao, alteracao.item_id]
+        );
+
         await client.query('DELETE FROM alteracoes WHERE id = $1', [id]);
 
         await client.query('COMMIT');
