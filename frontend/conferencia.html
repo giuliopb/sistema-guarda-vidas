@@ -117,9 +117,52 @@ window.location="login.html"
 
 
 
+
+
+function formatarDataHoraBrasilia(dataIso){
+
+if(!dataIso) return "Nunca"
+
+const data = new Date(dataIso)
+
+if(Number.isNaN(data.getTime())) return "Nunca"
+
+const partes = new Intl.DateTimeFormat("pt-BR", {
+
+timeZone:"America/Sao_Paulo",
+
+hour12:false,
+
+hour:"2-digit",
+
+minute:"2-digit",
+
+day:"2-digit",
+
+month:"2-digit",
+
+year:"numeric"
+
+}).formatToParts(data)
+
+const valores = Object.fromEntries(
+
+partes
+
+.filter((p) => p.type !== "literal")
+
+.map((p) => [p.type, p.value])
+
+)
+
+return `${valores.hour}:${valores.minute} ${valores.day}/${valores.month}/${valores.year}`
+
+}
+
+
 async function carregarPostos(){
 
-const res = await fetch("/postos")
+const res = await fetch("/dashboard/postos")
 
 const postos = await res.json()
 
@@ -147,7 +190,7 @@ card.innerHTML = `
 
 <div class="sub">
 Última conferência: 
-${p.ultima_conferencia ? p.ultima_conferencia : "Nunca"}
+${formatarDataHoraBrasilia(p.ultima_conferencia)}
 </div>
 
 </div>

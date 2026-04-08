@@ -135,7 +135,7 @@ router.post('/completo', async (req, res) => {
                 }
 
                 await client.query(
-                    'INSERT INTO itens (nome, divisao_id, quantidade_padrao) VALUES ($1, $2, $3)',
+                    'INSERT INTO itens (nome, divisao_id, quantidade_padrao, quantidade_atual) VALUES ($1, $2, $3, $3)',
                     [nomeItem, divisaoCriada.id, Number(item.quantidade_padrao || 0)]
                 );
             }
@@ -175,7 +175,7 @@ router.get('/:id/completo', async (req, res) => {
 
         for (const divisao of divisoesResult.rows) {
             const itensResult = await pool.query(
-                'SELECT id, nome, quantidade_padrao FROM itens WHERE divisao_id = $1 ORDER BY id',
+                'SELECT id, nome, quantidade_padrao, quantidade_atual FROM itens WHERE divisao_id = $1 ORDER BY id',
                 [divisao.id]
             );
 
@@ -234,7 +234,7 @@ router.put('/:id/completo', async (req, res) => {
                 }
 
                 await client.query(
-                    'INSERT INTO itens (nome, divisao_id, quantidade_padrao) VALUES ($1, $2, $3)',
+                    'INSERT INTO itens (nome, divisao_id, quantidade_padrao, quantidade_atual) VALUES ($1, $2, $3, $3)',
                     [nomeItem, divisaoResult.rows[0].id, Number(item.quantidade_padrao || 0)]
                 );
             }
@@ -431,7 +431,7 @@ router.post('/divisoes/:id/itens', async (req, res) => {
 
     try {
         const result = await pool.query(
-            'INSERT INTO itens (nome, divisao_id, quantidade_padrao) VALUES ($1, $2, $3) RETURNING *',
+            'INSERT INTO itens (nome, divisao_id, quantidade_padrao, quantidade_atual) VALUES ($1, $2, $3, $3) RETURNING *',
             [nome.trim(), divisaoId, Number(quantidade_padrao || 0)]
         );
 
