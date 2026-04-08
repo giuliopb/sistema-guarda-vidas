@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solicitações de Troca</title>
+<style>
+body{margin:0;font-family:Arial;background:#f4f6f9}
+.header{background:#fff;padding:14px;display:flex;gap:10px;border-bottom:1px solid #ddd}
+.container{max-width:980px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.troca{border:1px solid #e3e7ee;border-radius:10px;padding:12px;margin-bottom:10px;background:#fafcff}
+.status{display:inline-block;padding:3px 8px;border-radius:14px;font-size:12px;color:#fff}
+.status-pendente{background:#f9a825}
+.status-autorizada{background:#2e7d32}
+.status-negada{background:#c62828}
+.acoes{display:flex;gap:8px;margin-top:8px}
+button{padding:8px 12px;border:none;border-radius:8px;cursor:pointer}
+.ok{background:#2e7d32;color:#fff}
+.no{background:#c62828;color:#fff}
+</style>
+</head>
+<body>
+<div class="header">
+  <div onclick="voltar()" style="cursor:pointer">←</div>
+  <div><b>Solicitações de Troca</b></div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div id="listaTrocas">Carregando...</div>
+  </div>
+</div>
+
+<script>
+if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
+
+function formatarData(dataIso){
+  if(!dataIso) return '-';
+  const [ano, mes, dia] = dataIso.substring(0,10).split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+function classeStatus(status){
+  if(status === 'autorizada') return 'status status-autorizada';
+  if(status === 'negada') return 'status status-negada';
+  return 'status status-pendente';
+}
+
+async function carregarTrocas(){
+  const res = await fetch('/trocas/admin');
+  const trocas = await res.json();
+  const lista = document.getElementById('listaTrocas');
+  lista.innerHTML = '';
+
+  if(!Array.isArray(trocas) || !trocas.length){
+    lista.innerHTML = '<p>Nenhuma solicitação de troca encontrada.</p>';
+    return;
+  }
+
+  trocas.forEach((troca) => {
+    const div = document.createElement('div');
+    div.className = 'troca';
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <b>${troca.solicitante_nome} ↔ ${troca.usuario_troca_nome}</b>
+        <span class="${classeStatus(troca.status)}">${troca.status}</span>
+      </div>
+      <small><b>Solicitada em:</b> ${formatarData(troca.criada_em)}</small><br>
+      <small><b>Serviço cedido:</b> ${formatarData(troca.data_servico_cedido)} | ${troca.carga_horaria_cedida}h | ${troca.posto_cedido_nome}</small><br>
+      <small><b>Retorno:</b> ${troca.possui_retorno ? `${formatarData(troca.data_retorno)} | ${troca.carga_horaria_retorno}h | ${troca.posto_retorno_nome}` : 'Nenhum'}</small>
+      <div class="acoes">
+        <button class="ok" onclick="atualizarStatus(${troca.id}, 'autorizada')">Autorizar</button>
+        <button class="no" onclick="atualizarStatus(${troca.id}, 'negada')">Negar</button>
+      </div>
+    `;
+
+    if(troca.status !== 'pendente'){
+      div.querySelector('.acoes').style.display = 'none';
+    }
+
+    lista.appendChild(div);
+  });
+}
+
+async function atualizarStatus(id, status){
+  const res = await fetch(`/trocas/${id}/status`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+
+  const data = await res.json();
+  if(!res.ok){
+    alert(data.erro || 'Não foi possível atualizar a solicitação');
+    return;
+  }
+
+  carregarTrocas();
+}
+
+function voltar(){ window.location='admin.html'; }
+
+carregarTrocas();
+</script>
+</body>
+</html>
