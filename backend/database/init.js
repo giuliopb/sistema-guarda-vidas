@@ -37,6 +37,17 @@ async function initDatabase() {
     `);
 
     await pool.query(`
+        ALTER TABLE itens
+        ADD COLUMN IF NOT EXISTS quantidade_atual INT
+    `);
+
+    await pool.query(`
+        UPDATE itens
+        SET quantidade_atual = quantidade_padrao
+        WHERE quantidade_atual IS NULL
+    `);
+
+    await pool.query(`
         ALTER TABLE alteracoes
         ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pendente'
     `);
