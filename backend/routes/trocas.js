@@ -100,6 +100,134 @@ router.post('/', async (req, res) => {
     }
 });
 
+router.get('/pendentes/count', async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT COUNT(*)::int AS total FROM trocas_servico WHERE status = 'pendente'"
+        );
+        res.json({ total: result.rows[0].total });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao contar trocas pendentes' });
+    }
+});
+
+router.get('/admin', async (req, res) => {
+    const status = (req.query.status || '').trim().toLowerCase();
+    const statusValidos = ['pendente', 'autorizada', 'negada'];
+
+    try {
+        const filtros = [];
+        const valores = [];
+
+        if (status && statusValidos.includes(status)) {
+            valores.push(status);
+            filtros.push(`ts.status = $${valores.length}`);
+        }
+
+        const where = filtros.length ? `WHERE ${filtros.join(' AND ')}` : '';
+
+        const result = await pool.query(
+            `
+            SELECT
+                ts.*,
+                s.nome AS solicitante_nome,
+                t.nome AS usuario_troca_nome,
+                pc.nome AS posto_cedido_nome,
+                pr.nome AS posto_retorno_nome
+            FROM trocas_servico ts
+            JOIN usuarios s ON s.id = ts.solicitante_id
+            JOIN usuarios t ON t.id = ts.usuario_troca_id
+            JOIN postos pc ON pc.id = ts.posto_cedido_id
+            LEFT JOIN postos pr ON pr.id = ts.posto_retorno_id
+            ${where}
+            ORDER BY
+              CASE ts.status
+                WHEN 'pendente' THEN 0
+                WHEN 'autorizada' THEN 1
+                ELSE 2
+              END,
+              ts.criada_em DESC
+            `,
+            valores
+        );
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao listar trocas para administração' });
+    }
+});
+
+router.put('/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    const statusValidos = ['autorizada', 'negada'];
+
+    if (!statusValidos.includes(status)) {
+        return res.status(400).json({ erro: 'Status inválido para aprovação' });
+    }
+
+    try {
+        const result = await pool.query(
+            'UPDATE trocas_servico SET status = $1 WHERE id = $2 RETURNING *',
+            [status, id]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({ erro: 'Troca não encontrada' });
+        }
+
+        res.json({ ok: true, troca: result.rows[0] });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao atualizar status da troca' });
+    }
+});
+
+router.get('/hoje', async (req, res) => {
+    const dataRef = req.query.data || new Date().toISOString().slice(0, 10);
+
+    try {
+        const result = await pool.query(
+            `
+            SELECT
+                ts.id,
+                ts.data_servico_cedido,
+                ts.data_retorno,
+                s.nome AS solicitante_nome,
+                t.nome AS usuario_troca_nome
+            FROM trocas_servico ts
+            JOIN usuarios s ON s.id = ts.solicitante_id
+            JOIN usuarios t ON t.id = ts.usuario_troca_id
+            WHERE ts.status = 'autorizada'
+              AND (ts.data_servico_cedido = $1::date OR ts.data_retorno = $1::date)
+            ORDER BY ts.criada_em DESC
+            `,
+            [dataRef]
+        );
+
+        const trocasHoje = result.rows.map((troca) => {
+            if (troca.data_servico_cedido && troca.data_servico_cedido.toISOString().slice(0, 10) === dataRef) {
+                return {
+                    id: troca.id,
+                    mensagem: `${troca.solicitante_nome} está para ${troca.usuario_troca_nome}`
+                };
+            }
+
+            return {
+                id: troca.id,
+                mensagem: `${troca.usuario_troca_nome} está para ${troca.solicitante_nome}`
+            };
+        });
+
+        res.json(trocasHoje);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao listar trocas do dia' });
+    }
+});
+
 router.get('/minhas', async (req, res) => {
     const usuarioId = Number(req.query.usuario_id || 0);
     const page = Math.max(Number(req.query.page || 1), 1);
