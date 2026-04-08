@@ -37,6 +37,7 @@ router.get('/alteracoes', async (req, res) => {
         const result = await pool.query(`
             SELECT
                 a.id,
+                a.item_id,
                 a.descricao,
                 a.quantidade_encontrada,
                 a.status,
@@ -46,7 +47,20 @@ router.get('/alteracoes', async (req, res) => {
                 i.quantidade_padrao,
                 d.nome AS divisao_nome,
                 p.nome AS posto_nome
-            FROM alteracoes a
+            FROM (
+                SELECT DISTINCT ON (item_id)
+                    id,
+                    item_id,
+                    conferencia_id,
+                    quantidade_encontrada,
+                    descricao,
+                    status,
+                    resolucao,
+                    criada_em
+                FROM alteracoes
+                WHERE status <> 'resolvido'
+                ORDER BY item_id, criada_em DESC
+            ) a
             JOIN itens i ON i.id = a.item_id
             JOIN divisoes d ON d.id = i.divisao_id
             JOIN postos p ON p.id = d.posto_id

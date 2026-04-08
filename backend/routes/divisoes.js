@@ -109,7 +109,24 @@ router.get('/:id/itens', async (req, res) => {
 
     try {
         const result = await pool.query(
-            'SELECT * FROM itens WHERE divisao_id = $1 ORDER BY id',
+            `
+            SELECT
+                i.*,
+                a.id AS alteracao_id,
+                a.descricao AS alteracao_descricao,
+                a.quantidade_encontrada AS alteracao_quantidade
+            FROM itens i
+            LEFT JOIN LATERAL (
+                SELECT id, descricao, quantidade_encontrada
+                FROM alteracoes
+                WHERE item_id = i.id
+                  AND status <> 'resolvido'
+                ORDER BY criada_em DESC
+                LIMIT 1
+            ) a ON true
+            WHERE i.divisao_id = $1
+            ORDER BY i.id
+            `,
             [divisaoId]
         );
 
@@ -177,20 +194,50 @@ router.post('/conferir', async (req, res) => {
                 continue;
             }
 
-            await pool.query(
+            const descricaoFinal = descricao || 'Quantidade abaixo do padrão';
+            const alteracaoAberta = await pool.query(
                 `
-                INSERT INTO alteracoes (
-                    item_id,
-                    conferencia_id,
-                    quantidade_encontrada,
-                    descricao,
-                    status,
-                    criada_em
-                )
-                VALUES ($1, $2, $3, $4, 'pendente', NOW())
+                SELECT id
+                FROM alteracoes
+                WHERE item_id = $1
+                  AND status <> 'resolvido'
+                ORDER BY criada_em DESC
+                LIMIT 1
                 `,
-                [alt.item_id, conferenciaId, quantidadeEncontrada, descricao || 'Quantidade abaixo do padrão']
+                [alt.item_id]
             );
+
+            if (alteracaoAberta.rows.length) {
+                await pool.query(
+                    `
+                    UPDATE alteracoes
+                    SET
+                        conferencia_id = $1,
+                        quantidade_encontrada = $2,
+                        descricao = $3,
+                        status = 'pendente',
+                        resolucao = NULL,
+                        criada_em = NOW()
+                    WHERE id = $4
+                    `,
+                    [conferenciaId, quantidadeEncontrada, descricaoFinal, alteracaoAberta.rows[0].id]
+                );
+            } else {
+                await pool.query(
+                    `
+                    INSERT INTO alteracoes (
+                        item_id,
+                        conferencia_id,
+                        quantidade_encontrada,
+                        descricao,
+                        status,
+                        criada_em
+                    )
+                    VALUES ($1, $2, $3, $4, 'pendente', NOW())
+                    `,
+                    [alt.item_id, conferenciaId, quantidadeEncontrada, descricaoFinal]
+                );
+            }
         }
 
         const conferidasResult = await pool.query(
