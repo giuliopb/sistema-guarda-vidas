@@ -41,6 +41,9 @@ function normalizarTipo(tipo) {
 
 async function inserirUsuarioSeguro({ nome, email, senha, tipo, autorizadoDesejado }) {
     const tipoNormalizado = normalizarTipo(tipo);
+    const tiposTentativa = tipoNormalizado === 'admin'
+        ? ['admin']
+        : Array.from(new Set([tipoNormalizado, 'guarda', 'gv', 'guarda-vidas', 'guardavidas', 'guarda_vidas']));
 
     async function inserirComTipo(tipoTentado) {
         return pool.query(
@@ -61,24 +64,38 @@ async function inserirUsuarioSeguro({ nome, email, senha, tipo, autorizadoDeseja
     }
 
     try {
-        const result = await inserirComTipo(tipoNormalizado);
+        const result = await inserirComTipo(tiposTentativa[0]);
         return result;
     } catch (error) {
-        const tipoAlternativo = tipoNormalizado === 'guarda' ? 'gv' : tipoNormalizado;
-
-        if (error && error.code === '23514' && error.constraint === 'usuarios_tipo_check' && tipoAlternativo !== tipoNormalizado) {
-            const retry = await inserirComTipo(tipoAlternativo);
-            return retry;
+        if (error && error.code === '23514') {
+            for (const tipoTentado of tiposTentativa.slice(1)) {
+                try {
+                    const retry = await inserirComTipo(tipoTentado);
+                    return retry;
+                } catch (retryError) {
+                    if (!(retryError && retryError.code === '23514')) {
+                        throw retryError;
+                    }
+                }
+            }
         }
 
         if (error && error.code === '42703') {
             try {
-                const fallback = await inserirSemAutorizado(tipoNormalizado);
+                const fallback = await inserirSemAutorizado(tiposTentativa[0]);
                 return fallback;
             } catch (fallbackError) {
-                if (fallbackError && fallbackError.code === '23514' && fallbackError.constraint === 'usuarios_tipo_check' && tipoAlternativo !== tipoNormalizado) {
-                    const fallbackRetry = await inserirSemAutorizado(tipoAlternativo);
-                    return fallbackRetry;
+                if (fallbackError && fallbackError.code === '23514') {
+                    for (const tipoTentado of tiposTentativa.slice(1)) {
+                        try {
+                            const fallbackRetry = await inserirSemAutorizado(tipoTentado);
+                            return fallbackRetry;
+                        } catch (retryError) {
+                            if (!(retryError && retryError.code === '23514')) {
+                                throw retryError;
+                            }
+                        }
+                    }
                 }
                 throw fallbackError;
             }
