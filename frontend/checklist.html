@@ -34,7 +34,21 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
 }
 .item-main{display:flex;align-items:center;gap:10px}
 .name{flex:1;font-size:17px;color:#1d1d1d;font-weight:bold}
+.name-wrap{display:flex;align-items:center;gap:6px;flex:1}
 .item-card.conferido .name{color:var(--ok)}
+.alert-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#d32f2f;
+  color:#fff;
+  font-size:12px;
+  font-weight:bold;
+  cursor:help;
+}
 .switch{position:relative;display:inline-block;width:46px;height:26px}
 .switch input{opacity:0;width:0;height:0}
 .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#bcbcbc;transition:.25s;border-radius:26px}
@@ -106,23 +120,24 @@ async function carregarItens(){
     card.onclick = () => marcarConferencia(i.id);
     card.innerHTML = `
       <div class="item-main">
-        <div class="name" id="label-${i.id}">${Number(i.quantidade_padrao || 0)}x ${i.nome}</div>
+        <div class="name-wrap">
+          <div class="name" id="label-${i.id}">${Number((i.quantidade_atual ?? i.quantidade_padrao) || 0)}x ${i.nome}</div>
+          <span class="alert-icon" id="alert-${i.id}" style="display:none" title="Alteração reportada">!</span>
+        </div>
         <label class="switch">
           <input type="checkbox" id="ok-${i.id}" onchange="toggleRevisado(${i.id})">
           <span class="slider"></span>
         </label>
       </div>
 
-      <button class="alert-link" id="alert-${i.id}" style="display:none" onclick="abrirAlteracao(${i.id}, event)">!! ver alteração</button>
-
       <span class="link" onclick="toggleDetalhes(${i.id}, event)">reportar problema / quantidade</span>
 
       <div class="details" id="details-${i.id}" onclick="event.stopPropagation()">
         <div class="row">
-          <label style="font-size:13px">Qtd padrão: <b>${i.quantidade_padrao}</b></label>
+          <label style="font-size:13px">Qtd padrão: <b>${i.quantidade_padrao}</b> | atual: <b>${(i.quantidade_atual ?? i.quantidade_padrao)}</b></label>
         </div>
         <div class="row" style="margin-top:6px">
-          <input type="number" id="qtd-${i.id}" min="0" value="${i.quantidade_padrao}" oninput="avaliarQuantidade(${i.id}, ${i.quantidade_padrao})">
+          <input type="number" id="qtd-${i.id}" min="0" value="${(i.quantidade_atual ?? i.quantidade_padrao)}" oninput="avaliarQuantidade(${i.id}, ${i.quantidade_padrao})">
         </div>
         <div class="warn" id="warn-${i.id}">Quantidade abaixo do padrão.</div>
         <div class="row" style="margin-top:6px">
@@ -134,6 +149,17 @@ async function carregarItens(){
       </div>
     `;
     lista.appendChild(card);
+
+    if(i.alteracao_id){
+      const qtdAlterada = Number((i.alteracao_quantidade ?? i.quantidade_atual ?? i.quantidade_padrao) || 0);
+      const descricaoAlteracao = (i.alteracao_descricao || '').trim();
+      alteracoes.set(i.id, {
+        item_id: i.id,
+        quantidade_encontrada: qtdAlterada,
+        descricao: descricaoAlteracao
+      });
+      atualizarIndicadorAlteracao(i.id, qtdAlterada, descricaoAlteracao, Number(i.quantidade_padrao || 0));
+    }
   });
 }
 
@@ -147,12 +173,6 @@ function marcarConferencia(itemId){
   const check = document.getElementById(`ok-${itemId}`);
   check.checked = !check.checked;
   toggleRevisado(itemId);
-}
-
-function abrirAlteracao(itemId, event){
-  event.stopPropagation();
-  const box = document.getElementById(`details-${itemId}`);
-  box.classList.add('show');
 }
 
 function toggleRevisado(itemId){
@@ -184,6 +204,23 @@ function atualizarTituloItem(itemId){
   document.getElementById(`label-${itemId}`).innerText = `${qtd}x ${item.nome}`;
 }
 
+function atualizarIndicadorAlteracao(itemId, qtd, descricao, quantidadePadrao){
+  const alertIcon = document.getElementById(`alert-${itemId}`);
+  const possui = qtd < quantidadePadrao || Boolean((descricao || '').trim());
+
+  if(!alertIcon) return;
+
+  if(!possui){
+    alertIcon.style.display = 'none';
+    alertIcon.title = 'Sem alteração reportada';
+    return;
+  }
+
+  const textoDescricao = (descricao || '').trim() || 'Quantidade abaixo do padrão';
+  alertIcon.style.display = 'inline-flex';
+  alertIcon.title = `Alteração: ${textoDescricao} (Qtd: ${qtd}/${quantidadePadrao})`;
+}
+
 function salvarAlteracaoItem(itemId, options = {}, event){
   if(event){ event.stopPropagation(); }
   const { exibirFeedback = true } = options;
@@ -193,7 +230,6 @@ function salvarAlteracaoItem(itemId, options = {}, event){
   const check = document.getElementById(`ok-${itemId}`);
   const card = check.closest('.item-card');
   const abaixoPadrao = qtd < Number(item.quantidade_padrao || 0);
-  const alertBtn = document.getElementById(`alert-${itemId}`);
 
   if(abaixoPadrao || desc){
     alteracoes.set(itemId, {
@@ -205,7 +241,7 @@ function salvarAlteracaoItem(itemId, options = {}, event){
     alteracoes.delete(itemId);
   }
 
-  alertBtn.style.display = alteracoes.has(itemId) ? 'inline-block' : 'none';
+  atualizarIndicadorAlteracao(itemId, qtd, desc, Number(item.quantidade_padrao || 0));
 
   check.checked = true;
   revisados.add(itemId);

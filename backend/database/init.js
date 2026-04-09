@@ -2,6 +2,17 @@ const pool = require('../db');
 
 async function initDatabase() {
     await pool.query(`
+        ALTER TABLE usuarios
+        ADD COLUMN IF NOT EXISTS autorizado BOOLEAN NOT NULL DEFAULT true
+    `);
+
+    await pool.query(`
+        UPDATE usuarios
+        SET autorizado = true
+        WHERE autorizado IS NULL
+    `);
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS tarefas_diarias (
             id SERIAL PRIMARY KEY,
             nome TEXT,
@@ -34,6 +45,34 @@ async function initDatabase() {
             posto_id INT NOT NULL REFERENCES postos(id) ON DELETE CASCADE,
             PRIMARY KEY (tarefa_id, posto_id)
         )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS trocas_servico (
+            id SERIAL PRIMARY KEY,
+            solicitante_id INT NOT NULL REFERENCES usuarios(id),
+            usuario_troca_id INT NOT NULL REFERENCES usuarios(id),
+            data_servico_cedido DATE NOT NULL,
+            posto_cedido_id INT NOT NULL REFERENCES postos(id),
+            carga_horaria_cedida SMALLINT NOT NULL,
+            possui_retorno BOOLEAN NOT NULL DEFAULT false,
+            data_retorno DATE,
+            posto_retorno_id INT REFERENCES postos(id),
+            carga_horaria_retorno SMALLINT,
+            status VARCHAR(20) NOT NULL DEFAULT 'pendente',
+            criada_em TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(`
+        ALTER TABLE itens
+        ADD COLUMN IF NOT EXISTS quantidade_atual INT
+    `);
+
+    await pool.query(`
+        UPDATE itens
+        SET quantidade_atual = quantidade_padrao
+        WHERE quantidade_atual IS NULL
     `);
 
     await pool.query(`

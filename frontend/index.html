@@ -39,7 +39,7 @@ body{margin:0;font-family:Arial;background:#f4f6f9}
 
   <div class="acoes">
     <button class="botao" onclick="abrirConferencia()">Iniciar Conferência</button>
-    <button class="botao-sec" onclick="solicitacoes()">Solicitações diversas</button>
+    <button class="botao-sec" onclick="abrirTrocaServico()">Troca de Serviço</button>
   </div>
 
   <div class="card">
@@ -78,7 +78,7 @@ async function carregarTarefaDiaria(){
 }
 
 function abrirConferencia(){ window.location='conferencia.html'; }
-function solicitacoes(){ alert('Canal de solicitações diversas disponível com o gestor.'); }
+function abrirTrocaServico(){ window.location='troca-servico.html'; }
 function logout(){ localStorage.clear(); window.location='login.html'; }
 
 carregarTarefaDiaria();

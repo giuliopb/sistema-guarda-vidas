@@ -14,7 +14,6 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
 .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
 .list-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #ececec}
 .list-item:last-child{border-bottom:none}
-.tag{padding:3px 8px;border-radius:20px;background:#eee;font-size:12px}
 .tarefa-item{margin:10px 0;padding:12px;border:1px solid #e3e7ee;border-radius:10px;background:#f9fbff}
 .tarefa-titulo{font-weight:bold;font-size:18px;margin-bottom:6px}
 .tarefa-desc{display:block;color:#444;margin-bottom:6px}
@@ -27,14 +26,21 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
   <div class="card">
     <div class="row">
       <button class="btn-primary" onclick="window.location='cadastro-posto.html'">Cadastrar postos</button>
+      <button class="btn-primary" onclick="window.location='cadastros.html'">Cadastros</button>
       <button class="btn-primary" onclick="window.location='tarefas-diarias.html'">Adicionar tarefa diária</button>
+      <button class="btn-primary" onclick="window.location='trocas-admin.html'" id="btnTrocas">Solicitações de troca (0)</button>
       <button class="btn-danger" onclick="logout()">Sair</button>
     </div>
   </div>
 
   <div class="card">
-    <h3>Tarefa diária de hoje</h3>
-    <div id="tarefasDiariasHoje">Carregando...</div>
+    <h3>Trocas autorizadas</h3>
+    <div id="trocasAutorizadas">Carregando...</div>
+  </div>
+
+  <div class="card">
+    <h3>Problemas reportados pelos guarda-vidas</h3>
+    <div id="alteracoes">Carregando...</div>
   </div>
 
   <div class="card">
@@ -43,13 +49,37 @@ button{padding:10px 14px;border:none;border-radius:8px;cursor:pointer}
   </div>
 
   <div class="card">
-    <h3>Problemas reportados pelos guarda-vidas</h3>
-    <div id="alteracoes">Carregando...</div>
+    <h3>Tarefa diária de hoje</h3>
+    <div id="tarefasDiariasHoje">Carregando...</div>
   </div>
 </div>
 
 <script>
 if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
+
+function formatarDataHoraBrasilia(dataIso){
+  if(!dataIso) return 'Nunca';
+  const data = new Date(dataIso);
+  if(Number.isNaN(data.getTime())) return 'Nunca';
+
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).formatToParts(data);
+
+  const valores = Object.fromEntries(
+    partes
+      .filter((p) => p.type !== 'literal')
+      .map((p) => [p.type, p.value])
+  );
+
+  return `${valores.hour}:${valores.minute} ${valores.day}/${valores.month}/${valores.year}`;
+}
 
 async function carregarConferencias(){
   const resposta = await fetch('/dashboard/postos');
@@ -62,9 +92,43 @@ async function carregarConferencias(){
   postos.forEach((p) => {
     const div = document.createElement('div');
     div.className = 'list-item';
-    div.innerHTML = `<div><b>${p.nome}</b><br><small>Última conferência: ${p.ultima_conferencia || 'Nunca'} | Guarda-vidas: ${p.ultimo_usuario || '-'}</small></div>`;
+    div.innerHTML = `<div><b>${p.nome}</b><br><small>Última conferência: ${formatarDataHoraBrasilia(p.ultima_conferencia)} | Guarda-vidas: ${p.ultimo_usuario || '-'}</small></div>`;
     container.appendChild(div);
   });
+}
+
+async function carregarTrocasPendentesCount(){
+  try{
+    const res = await fetch('/trocas/pendentes/count');
+    const data = await res.json();
+    const total = Number(data.total || 0);
+    document.getElementById('btnTrocas').innerText = `Solicitações de troca (${total})`;
+  }catch(e){
+    document.getElementById('btnTrocas').innerText = 'Solicitações de troca';
+  }
+}
+
+async function carregarTrocasAutorizadasHoje(){
+  try{
+    const res = await fetch('/trocas/hoje');
+    const trocas = await res.json();
+    const container = document.getElementById('trocasAutorizadas');
+    container.innerHTML = '';
+
+    if(!Array.isArray(trocas) || !trocas.length){
+      container.innerHTML = '<p>Sem trocas autorizadas para hoje.</p>';
+      return;
+    }
+
+    trocas.forEach((troca) => {
+      const item = document.createElement('div');
+      item.className = 'list-item';
+      item.innerHTML = `<div>${troca.mensagem}</div>`;
+      container.appendChild(item);
+    });
+  }catch(e){
+    document.getElementById('trocasAutorizadas').innerHTML = '<p>Não foi possível carregar as trocas autorizadas.</p>';
+  }
 }
 
 async function carregarTarefaDiariaHoje(){
@@ -107,25 +171,15 @@ async function carregarAlteracoes(){
         <small>${a.descricao} | Qtd encontrada: ${a.quantidade_encontrada ?? '-'} / padrão: ${a.quantidade_padrao}</small>
       </div>
       <div>
-        <span class="tag">${a.status}</span>
-        <button onclick="atualizarProblema(${a.id})">Atualizar</button>
+        <button onclick="resolverProblema(${a.id})">Resolvido</button>
       </div>
     `;
     container.appendChild(div);
   });
 }
 
-async function atualizarProblema(id){
-  const status = prompt('Novo status (pendente, em_correcao, resolvido):', 'em_correcao');
-  if(!status) return;
-  const resolucao = prompt('Observação de atualização (opcional):', '');
-
-  await fetch(`/dashboard/alteracoes/${id}`, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({status, resolucao})
-  });
-
+async function resolverProblema(id){
+  await fetch(`/dashboard/alteracoes/${id}/resolver`, { method:'PUT' });
   carregarAlteracoes();
 }
 
@@ -134,6 +188,8 @@ function logout(){ localStorage.clear(); window.location='login.html'; }
 carregarTarefaDiariaHoje();
 carregarConferencias();
 carregarAlteracoes();
+carregarTrocasPendentesCount();
+carregarTrocasAutorizadasHoje();
 </script>
 </body>
 </html>

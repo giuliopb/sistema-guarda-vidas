@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastros de Usuários</title>
+<style>
+body{margin:0;font-family:Arial;background:#f4f6f9}
+.header{background:#fff;padding:14px;display:flex;gap:10px;border-bottom:1px solid #ddd}
+.container{max-width:1000px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input,select,button{padding:10px;border-radius:8px;border:1px solid #ccc}
+button{border:none;cursor:pointer}
+.primary{background:#1565c0;color:#fff}
+.ok{background:#2e7d32;color:#fff}
+.danger{background:#c62828;color:#fff}
+.item{border-bottom:1px solid #ececec;padding:10px 0;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.item:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+<div class="header">
+  <div onclick="voltar()" style="cursor:pointer">←</div>
+  <div><b>Cadastros de usuários</b></div>
+</div>
+<div class="container">
+  <div class="card">
+    <h3 style="margin-top:0">Novo cadastro</h3>
+    <div class="row">
+      <input id="nome" placeholder="Nome completo" style="flex:2">
+      <input id="email" placeholder="Email" style="flex:2">
+      <input id="senha" type="password" placeholder="Senha" style="flex:1">
+      <select id="tipo">
+        <option value="guarda">Guarda-vidas</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button class="primary" onclick="criar()">Criar</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Cadastros</h3>
+    <div id="lista">Carregando...</div>
+  </div>
+</div>
+
+<script>
+if(localStorage.getItem('usuario_tipo') !== 'admin'){ window.location='login.html'; }
+
+async function carregar(){
+  const res = await fetch('/usuarios');
+  const usuarios = await res.json();
+  const lista = document.getElementById('lista');
+  lista.innerHTML = '';
+
+  if(!Array.isArray(usuarios) || !usuarios.length){
+    lista.innerHTML = '<p>Nenhum cadastro encontrado.</p>';
+    return;
+  }
+
+  usuarios.forEach((u) => {
+    const item = document.createElement('div');
+    item.className = 'item';
+    const conteudo = document.createElement('div');
+    conteudo.innerHTML = `<b>${u.nome}</b><br><small>${u.email} | tipo: ${u.tipo} | ${u.autorizado ? 'autorizado' : 'pendente'}</small>`;
+
+    const acoes = document.createElement('div');
+    acoes.className = 'row';
+
+    if(!u.autorizado){
+      const btnAutorizar = document.createElement('button');
+      btnAutorizar.className = 'ok';
+      btnAutorizar.innerText = 'Autorizar';
+      btnAutorizar.onclick = () => autorizar(u.id);
+      acoes.appendChild(btnAutorizar);
+    }
+
+    const btnEditar = document.createElement('button');
+    btnEditar.innerText = 'Editar';
+    btnEditar.onclick = () => editar(u);
+    acoes.appendChild(btnEditar);
+
+    const btnExcluir = document.createElement('button');
+    btnExcluir.className = 'danger';
+    btnExcluir.innerText = 'Excluir';
+    btnExcluir.onclick = () => excluir(u.id);
+    acoes.appendChild(btnExcluir);
+
+    item.appendChild(conteudo);
+    item.appendChild(acoes);
+    lista.appendChild(item);
+  });
+}
+
+async function criar(){
+  try{
+    const payload = {
+      nome: document.getElementById('nome').value,
+      email: document.getElementById('email').value,
+      senha: document.getElementById('senha').value,
+      tipo: document.getElementById('tipo').value,
+      autorizado: true
+    };
+
+    const res = await fetch('/usuarios', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){ alert(data.erro || 'Erro ao criar cadastro'); return; }
+    carregar();
+  }catch(e){
+    alert('Falha de conexão ao criar cadastro');
+  }
+}
+
+async function autorizar(id){
+  const res = await fetch(`/usuarios/${id}/autorizar`, { method:'PUT' });
+  const data = await res.json();
+  if(!res.ok){ alert(data.erro || 'Erro ao autorizar'); return; }
+  carregar();
+}
+
+async function editar(usuario){
+  const nome = prompt('Nome completo:', usuario.nome);
+  if(nome === null) return;
+  const email = prompt('Email:', usuario.email);
+  if(email === null) return;
+  const senha = prompt('Senha (deixe em branco para manter a atual):', '');
+  if(senha === null) return;
+  const tipo = prompt('Tipo (guarda/admin):', usuario.tipo);
+  if(tipo === null) return;
+  const autorizadoTxt = prompt('Autorizado? (sim/não):', usuario.autorizado ? 'sim' : 'não');
+  if(autorizadoTxt === null) return;
+
+  const payload = {
+    nome,
+    email,
+    tipo: tipo.trim().toLowerCase() === 'admin' ? 'admin' : 'guarda',
+    autorizado: autorizadoTxt.trim().toLowerCase() === 'sim'
+  };
+
+  if(senha.trim()){ payload.senha = senha; }
+
+  const res = await fetch(`/usuarios/${usuario.id}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if(!res.ok){ alert(data.erro || 'Erro ao editar'); return; }
+  carregar();
+}
+
+async function excluir(id){
+  if(!confirm('Deseja excluir esse cadastro?')) return;
+  const res = await fetch(`/usuarios/${id}`, { method:'DELETE' });
+  const data = await res.json();
+  if(!res.ok){ alert(data.erro || 'Erro ao excluir'); return; }
+  carregar();
+}
+
+function voltar(){ window.location='admin.html'; }
+
+carregar();
+</script>
+</body>
+</html>
