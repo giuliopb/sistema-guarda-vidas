@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro de Usuário</title>
+<style>
+body{margin:0;font-family:Arial;background:#f4f6f9;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.card{background:#fff;padding:20px;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.12);width:360px}
+input,button{width:100%;box-sizing:border-box;padding:11px;margin-top:8px;border-radius:8px;border:1px solid #ccc}
+button{border:none;background:#1565c0;color:#fff;cursor:pointer}
+.sec{background:#666}
+.msg{margin-top:10px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h3 style="margin-top:0">Novo cadastro</h3>
+  <input id="nome" placeholder="Nome completo">
+  <input id="email" placeholder="Email">
+  <input id="senha" type="password" placeholder="Senha">
+  <button onclick="cadastrar()">Enviar cadastro</button>
+  <button class="sec" onclick="window.location='login.html'">Voltar ao login</button>
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+async function cadastrar(){
+  const msg = document.getElementById('msg');
+  msg.style.color = '#333';
+  msg.innerText = 'Enviando...';
+
+  try{
+    const nome = document.getElementById('nome').value;
+    const email = document.getElementById('email').value;
+    const senha = document.getElementById('senha').value;
+
+    const res = await fetch('/usuarios/cadastro', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nome, email, senha})
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if(!res.ok){
+      msg.style.color = 'red';
+      msg.innerText = data.erro || 'Não foi possível enviar o cadastro';
+      return;
+    }
+
+    msg.style.color = 'green';
+    msg.innerText = data.mensagem || 'Cadastro enviado! Aguarde autorização do administrador.';
+  }catch(e){
+    msg.style.color = 'red';
+    msg.innerText = 'Falha de conexão ao enviar cadastro';
+  }
+}
+</script>
+</body>
+</html>
