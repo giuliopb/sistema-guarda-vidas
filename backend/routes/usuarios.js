@@ -32,24 +32,56 @@ function validarCamposBasicos(nome, email, senha) {
     return null;
 }
 
+function normalizarTipo(tipo) {
+    const valor = String(tipo || '').trim().toLowerCase();
+    if (valor === 'admin') return 'admin';
+    if (['gv', 'guarda', 'guarda-vidas', 'guardavidas'].includes(valor)) return 'guarda';
+    return 'guarda';
+}
+
 async function inserirUsuarioSeguro({ nome, email, senha, tipo, autorizadoDesejado }) {
-    try {
-        const result = await pool.query(
+    const tipoNormalizado = normalizarTipo(tipo);
+
+    async function inserirComTipo(tipoTentado) {
+        return pool.query(
             `INSERT INTO usuarios (nome, email, senha, tipo, autorizado)
              VALUES ($1, $2, $3, $4, $5)
              RETURNING id, nome, email, tipo, autorizado`,
-            [nome, email, senha, tipo, autorizadoDesejado]
+            [nome, email, senha, tipoTentado, autorizadoDesejado]
         );
+    }
+
+    async function inserirSemAutorizado(tipoTentado) {
+        return pool.query(
+            `INSERT INTO usuarios (nome, email, senha, tipo)
+             VALUES ($1, $2, $3, $4)
+             RETURNING id, nome, email, tipo, true AS autorizado`,
+            [nome, email, senha, tipoTentado]
+        );
+    }
+
+    try {
+        const result = await inserirComTipo(tipoNormalizado);
         return result;
     } catch (error) {
+        const tipoAlternativo = tipoNormalizado === 'guarda' ? 'gv' : tipoNormalizado;
+
+        if (error && error.code === '23514' && error.constraint === 'usuarios_tipo_check' && tipoAlternativo !== tipoNormalizado) {
+            const retry = await inserirComTipo(tipoAlternativo);
+            return retry;
+        }
+
         if (error && error.code === '42703') {
-            const fallback = await pool.query(
-                `INSERT INTO usuarios (nome, email, senha, tipo)
-                 VALUES ($1, $2, $3, $4)
-                 RETURNING id, nome, email, tipo, true AS autorizado`,
-                [nome, email, senha, tipo]
-            );
-            return fallback;
+            try {
+                const fallback = await inserirSemAutorizado(tipoNormalizado);
+                return fallback;
+            } catch (fallbackError) {
+                if (fallbackError && fallbackError.code === '23514' && fallbackError.constraint === 'usuarios_tipo_check' && tipoAlternativo !== tipoNormalizado) {
+                    const fallbackRetry = await inserirSemAutorizado(tipoAlternativo);
+                    return fallbackRetry;
+                }
+                throw fallbackError;
+            }
         }
         throw error;
     }
@@ -128,14 +160,14 @@ router.post('/cadastro', async (req, res) => {
                 nome: nome.trim(),
                 email: email.trim().toLowerCase(),
                 senha: senha.trim(),
-                tipo: 'gv',
+                tipo: 'guarda',
                 autorizadoDesejado: false
             })
             : await inserirUsuarioSeguro({
                 nome: nome.trim(),
                 email: email.trim().toLowerCase(),
                 senha: senha.trim(),
-                tipo: 'gv',
+                tipo: 'guarda',
                 autorizadoDesejado: true
             });
 
@@ -166,7 +198,7 @@ router.get('/', async (req, res) => {
 
 // CRIAR CADASTRO (ADMIN)
 router.post('/', async (req, res) => {
-    const { nome, email, senha, tipo = 'gv', autorizado = true } = req.body;
+    const { nome, email, senha, tipo = 'guarda', autorizado = true } = req.body;
     const erro = validarCamposBasicos(nome, email, senha);
     if (erro) return res.status(400).json({ erro });
 
@@ -236,7 +268,7 @@ router.put('/:id', async (req, res) => {
         const novoNome = ((nome ?? atual.rows[0].nome) || '').trim();
         const novoEmail = ((email ?? atual.rows[0].email) || '').trim().toLowerCase();
         const novaSenha = ((senha ?? atual.rows[0].senha) || '').trim();
-        const novoTipo = tipo ?? atual.rows[0].tipo;
+        const novoTipo = normalizarTipo(tipo ?? atual.rows[0].tipo);
         const novoAutorizado = possuiAutorizado
             ? (autorizado === undefined ? atual.rows[0].autorizado : Boolean(autorizado))
             : true;

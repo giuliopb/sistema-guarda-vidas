@@ -32,7 +32,7 @@ button{border:none;cursor:pointer}
       <input id="email" placeholder="Email" style="flex:2">
       <input id="senha" type="password" placeholder="Senha" style="flex:1">
       <select id="tipo">
-        <option value="gv">Guarda-vidas</option>
+        <option value="guarda">Guarda-vidas</option>
         <option value="admin">Admin</option>
       </select>
       <button class="primary" onclick="criar()">Criar</button>
@@ -131,7 +131,7 @@ async function editar(usuario){
   if(email === null) return;
   const senha = prompt('Senha (deixe em branco para manter a atual):', '');
   if(senha === null) return;
-  const tipo = prompt('Tipo (gv/admin):', usuario.tipo);
+  const tipo = prompt('Tipo (guarda/admin):', usuario.tipo);
   if(tipo === null) return;
   const autorizadoTxt = prompt('Autorizado? (sim/não):', usuario.autorizado ? 'sim' : 'não');
   if(autorizadoTxt === null) return;
@@ -139,7 +139,7 @@ async function editar(usuario){
   const payload = {
     nome,
     email,
-    tipo: tipo.trim().toLowerCase() === 'admin' ? 'admin' : 'gv',
+    tipo: tipo.trim().toLowerCase() === 'admin' ? 'admin' : 'guarda',
     autorizado: autorizadoTxt.trim().toLowerCase() === 'sim'
   };
 
