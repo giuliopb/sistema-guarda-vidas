@@ -37,7 +37,7 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
 .name-wrap{display:flex;align-items:center;gap:6px;flex:1}
 .item-card.conferido .name{color:var(--ok)}
 .alert-icon{
-  display:inline-flex;
+  display:none;
   align-items:center;
   justify-content:center;
   width:18px;
@@ -47,7 +47,9 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
   color:#fff;
   font-size:12px;
   font-weight:bold;
-  cursor:help;
+  border:none;
+  cursor:pointer;
+  padding:0;
 }
 .switch{position:relative;display:inline-block;width:46px;height:26px}
 .switch input{opacity:0;width:0;height:0}
@@ -122,7 +124,7 @@ async function carregarItens(){
       <div class="item-main">
         <div class="name-wrap">
           <div class="name" id="label-${i.id}">${Number((i.quantidade_atual ?? i.quantidade_padrao) || 0)}x ${i.nome}</div>
-          <span class="alert-icon" id="alert-${i.id}" style="display:none" title="Alteração reportada">!</span>
+          <button class="alert-icon" id="alert-${i.id}" style="display:none" onclick="mostrarAlteracao(${i.id}, event)" aria-label="Ver alteração reportada">!</button>
         </div>
         <label class="switch">
           <input type="checkbox" id="ok-${i.id}" onchange="toggleRevisado(${i.id})">
@@ -212,13 +214,27 @@ function atualizarIndicadorAlteracao(itemId, qtd, descricao, quantidadePadrao){
 
   if(!possui){
     alertIcon.style.display = 'none';
-    alertIcon.title = 'Sem alteração reportada';
+    delete alertIcon.dataset.descricao;
+    delete alertIcon.dataset.qtd;
+    delete alertIcon.dataset.padrao;
     return;
   }
 
   const textoDescricao = (descricao || '').trim() || 'Quantidade abaixo do padrão';
   alertIcon.style.display = 'inline-flex';
-  alertIcon.title = `Alteração: ${textoDescricao} (Qtd: ${qtd}/${quantidadePadrao})`;
+  alertIcon.dataset.descricao = textoDescricao;
+  alertIcon.dataset.qtd = String(qtd);
+  alertIcon.dataset.padrao = String(quantidadePadrao);
+}
+
+function mostrarAlteracao(itemId, event){
+  event.stopPropagation();
+  const alertIcon = document.getElementById(`alert-${itemId}`);
+  if(!alertIcon) return;
+  const descricao = alertIcon.dataset.descricao || 'Quantidade abaixo do padrão';
+  const qtd = alertIcon.dataset.qtd || '0';
+  const padrao = alertIcon.dataset.padrao || '0';
+  alert(`Alteração: ${descricao}\nQuantidade: ${qtd}/${padrao}`);
 }
 
 function salvarAlteracaoItem(itemId, options = {}, event){

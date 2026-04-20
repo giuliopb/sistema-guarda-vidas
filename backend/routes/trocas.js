@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
+function getDataReferenciaBrasil() {
+    const partes = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(new Date());
+
+    const ano = partes.find((p) => p.type === 'year')?.value;
+    const mes = partes.find((p) => p.type === 'month')?.value;
+    const dia = partes.find((p) => p.type === 'day')?.value;
+
+    return `${ano}-${mes}-${dia}`;
+}
+
 router.get('/usuarios', async (req, res) => {
     const solicitanteId = Number(req.query.solicitante_id || 0);
 
@@ -185,30 +200,91 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 
+router.delete('/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await pool.query(
+            'DELETE FROM trocas_servico WHERE id = $1 RETURNING id',
+            [id]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({ erro: 'Troca não encontrada' });
+        }
+
+        res.json({ ok: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao excluir troca' });
+    }
+});
+
 router.get('/hoje', async (req, res) => {
-    const dataRef = req.query.data || new Date().toISOString().slice(0, 10);
+    const dataRef = req.query.data || getDataReferenciaBrasil();
+    const [anoRefStr, mesRefStr, diaRefStr] = dataRef.split('-');
+    const anoRef = Number(anoRefStr);
+    const mesRef = Number(mesRefStr);
+    const diaRef = Number(diaRefStr);
+
+    if (!anoRef || !mesRef || !diaRef) {
+        return res.status(400).json({ erro: 'Data de referência inválida. Use o formato YYYY-MM-DD.' });
+    }
 
     try {
         const result = await pool.query(
             `
             SELECT
                 ts.id,
-                ts.data_servico_cedido,
-                ts.data_retorno,
                 s.nome AS solicitante_nome,
-                t.nome AS usuario_troca_nome
+                t.nome AS usuario_troca_nome,
+                (
+                    EXTRACT(MONTH FROM ts.data_servico_cedido) = $1
+                    AND EXTRACT(DAY FROM ts.data_servico_cedido) = $2
+                    AND (
+                        EXTRACT(YEAR FROM ts.data_servico_cedido) = $3
+                        OR EXTRACT(YEAR FROM ts.data_servico_cedido) < 100
+                    )
+                ) AS cedido_no_dia,
+                (
+                    ts.data_retorno IS NOT NULL
+                    AND EXTRACT(MONTH FROM ts.data_retorno) = $1
+                    AND EXTRACT(DAY FROM ts.data_retorno) = $2
+                    AND (
+                        EXTRACT(YEAR FROM ts.data_retorno) = $3
+                        OR EXTRACT(YEAR FROM ts.data_retorno) < 100
+                    )
+                ) AS retorno_no_dia
             FROM trocas_servico ts
             JOIN usuarios s ON s.id = ts.solicitante_id
             JOIN usuarios t ON t.id = ts.usuario_troca_id
             WHERE ts.status = 'autorizada'
-              AND (ts.data_servico_cedido = $1::date OR ts.data_retorno = $1::date)
+              AND (
+                    (
+                        EXTRACT(MONTH FROM ts.data_servico_cedido) = $1
+                        AND EXTRACT(DAY FROM ts.data_servico_cedido) = $2
+                        AND (
+                            EXTRACT(YEAR FROM ts.data_servico_cedido) = $3
+                            OR EXTRACT(YEAR FROM ts.data_servico_cedido) < 100
+                        )
+                    )
+                    OR (
+                        ts.data_retorno IS NOT NULL
+                        AND EXTRACT(MONTH FROM ts.data_retorno) = $1
+                        AND EXTRACT(DAY FROM ts.data_retorno) = $2
+                        AND (
+                            EXTRACT(YEAR FROM ts.data_retorno) = $3
+                            OR EXTRACT(YEAR FROM ts.data_retorno) < 100
+                        )
+                    )
+                )
             ORDER BY ts.criada_em DESC
             `,
-            [dataRef]
+            [mesRef, diaRef, anoRef]
         );
 
         const trocasHoje = result.rows.map((troca) => {
-            if (troca.data_servico_cedido && troca.data_servico_cedido.toISOString().slice(0, 10) === dataRef) {
+            if (troca.cedido_no_dia) {
                 return {
                     id: troca.id,
                     mensagem: `${troca.solicitante_nome} está para ${troca.usuario_troca_nome}`
