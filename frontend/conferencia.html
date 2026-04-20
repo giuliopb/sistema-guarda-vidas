@@ -20,26 +20,44 @@ background:#f4f6f9;
 
 .header{
 background:white;
-padding:14px;
-display:flex;
-align-items:center;
-gap:10px;
 border-bottom:1px solid #ddd;
 }
 
-.voltar{
-cursor:pointer;
-font-size:18px;
+.header-conteudo{
+max-width:980px;
+margin:0 auto;
+padding:12px 16px;
+display:flex;
+justify-content:space-between;
+align-items:center;
 }
 
-.titulo{
+.header-titulo{
+margin:0;
+font-size:22px;
+}
+
+.header-botao{
+background:#1565c0;
+color:#fff;
+border:none;
+border-radius:10px;
+padding:10px 18px;
+font-size:14px;
 font-weight:bold;
+cursor:pointer;
+}
+
+.header-botao:hover{
+background:#0f4ea1;
 }
 
 /* LISTA */
 
 .container{
 padding:15px;
+max-width:980px;
+margin:0 auto;
 }
 
 .card{
@@ -92,11 +110,10 @@ color:#777;
 <body>
 
 <div class="header">
-
-<div class="voltar" onclick="voltar()">←</div>
-
-<div class="titulo">Escolha um Posto</div>
-
+<div class="header-conteudo">
+<h1 class="header-titulo">Escolha um Posto</h1>
+<button class="header-botao" onclick="voltar()">Voltar</button>
+</div>
 </div>
 
 
