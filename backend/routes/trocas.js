@@ -200,6 +200,26 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 
+router.delete('/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await pool.query(
+            'DELETE FROM trocas_servico WHERE id = $1 RETURNING id',
+            [id]
+        );
+
+        if (!result.rows.length) {
+            return res.status(404).json({ erro: 'Troca não encontrada' });
+        }
+
+        res.json({ ok: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ erro: 'Erro ao excluir troca' });
+    }
+});
+
 router.get('/hoje', async (req, res) => {
     const dataRef = req.query.data || getDataReferenciaBrasil();
     const [anoRefStr, mesRefStr, diaRefStr] = dataRef.split('-');

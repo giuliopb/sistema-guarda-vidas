@@ -22,6 +22,7 @@ body{margin:0;font-family:Arial;background:#f4f6f9}
 button{padding:8px 12px;border:none;border-radius:8px;cursor:pointer}
 .ok{background:#2e7d32;color:#fff}
 .no{background:#c62828;color:#fff}
+.danger{background:#6d1b1b;color:#fff}
 </style>
 </head>
 <body>
@@ -78,11 +79,13 @@ async function carregarTrocas(){
       <div class="acoes">
         <button class="ok" onclick="atualizarStatus(${troca.id}, 'autorizada')">Autorizar</button>
         <button class="no" onclick="atualizarStatus(${troca.id}, 'negada')">Negar</button>
+        <button class="danger" onclick="excluirTroca(${troca.id})">Excluir</button>
       </div>
     `;
 
     if(troca.status !== 'pendente'){
-      div.querySelector('.acoes').style.display = 'none';
+      const botoesStatus = div.querySelectorAll('.ok, .no');
+      botoesStatus.forEach((btn) => btn.style.display = 'none');
     }
 
     lista.appendChild(div);
@@ -99,6 +102,20 @@ async function atualizarStatus(id, status){
   const data = await res.json();
   if(!res.ok){
     alert(data.erro || 'Não foi possível atualizar a solicitação');
+    return;
+  }
+
+  carregarTrocas();
+}
+
+async function excluirTroca(id){
+  if(!confirm('Deseja realmente excluir esta troca? Esta ação não pode ser desfeita.')) return;
+
+  const res = await fetch(`/trocas/${id}`, { method:'DELETE' });
+  const data = await res.json().catch(() => ({}));
+
+  if(!res.ok){
+    alert(data.erro || 'Não foi possível excluir a troca');
     return;
   }
 
