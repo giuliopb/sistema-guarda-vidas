@@ -39,14 +39,13 @@ button{cursor:pointer;border:none}
   </div>
 
   <div class="card">
-    <label>Nome do posto</label><br>
-    <input id="nomePosto" type="text" placeholder="Ex.: Posto Central" style="width:100%;margin-top:8px">
-  </div>
-
-  <div class="card">
     <div class="row">
       <h3 style="margin:0">Divisões do posto</h3>
       <button class="primary" onclick="adicionarDivisao()">+ Adicionar divisão</button>
+    </div>
+    <div style="margin-top:12px">
+      <label style="font-weight:bold">Nome do posto</label><br>
+      <input id="nomePosto" type="text" placeholder="Ex.: Posto Central" style="width:100%;margin-top:8px">
     </div>
     <p>Regra: 1 posto precisa de 1 ou mais divisões e cada divisão deve conter 1 ou mais itens.</p>
     <div id="listaDivisoes"></div>
@@ -54,7 +53,6 @@ button{cursor:pointer;border:none}
 
   <div class="row">
     <button class="success" onclick="salvarPostoCompleto()" id="btnSalvar">Salvar posto completo</button>
-    <button onclick="window.location='admin.html'">Voltar</button>
   </div>
 </div>
 
