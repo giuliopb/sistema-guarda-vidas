@@ -6,6 +6,11 @@
 <title>Cadastrar Posto</title>
 <style>
 body{font-family:Arial;margin:0;background:#f2f5f8}
+.header{background:#fff;border-bottom:1px solid #ddd}
+.header-conteudo{max-width:1000px;margin:0 auto;padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.header-titulo{margin:0;font-size:22px}
+.header-botao{background:#1565c0;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:bold;cursor:pointer}
+.header-botao:hover{background:#0f4ea1}
 .wrap{max-width:1000px;margin:0 auto;padding:20px}
 .card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:14px}
 input,button{padding:10px;border-radius:8px;border:1px solid #ccc}
@@ -18,16 +23,16 @@ button{cursor:pointer;border:none}
 .item-row{display:flex;gap:8px;margin-top:6px}
 .item-row input{flex:1}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="topo">
-    <h1 id="tituloPagina" style="margin:0">Novo posto</h1>
-    <button onclick="window.location='admin.html'">Voltar</button>
+<div class="header">
+  <div class="header-conteudo">
+    <h1 id="tituloPagina" class="header-titulo">Novo posto</h1>
+    <button class="header-botao" onclick="window.location='admin.html'">Voltar</button>
   </div>
-
+</div>
+<div class="wrap">
   <div class="card">
     <h3 style="margin-top:0">Gestão de postos (incluir / editar / excluir)</h3>
     <div id="postosCrud">Carregando...</div>
